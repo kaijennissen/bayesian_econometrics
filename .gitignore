@@ -8,6 +8,8 @@
 # Example code in package build process
 *-Ex.R
 
+# Matlab Files
+*.m
 # Output files from R CMD build
 /*.tar.gz
 
@@ -16,6 +18,7 @@
 
 # RStudio files
 .Rproj.user/
+*.Rproj
 
 # produced vignettes
 vignettes/*.html

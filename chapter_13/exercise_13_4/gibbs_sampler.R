@@ -3,7 +3,7 @@
 #randn('seed',sum(100*clock));
 rm(list=ls())
 set.seed(123)
-rats <- read.csv("./Desktop/bayesian_econometrics/chapter_13/exercise_13_4/rats.txt", sep = "", header=FALSE)
+rats <- read.csv("./chapter_13/exercise_13_4/rats.txt", sep = "", header=FALSE)
 rats <- as.matrix(rats)
 dimnames(rats) <- NULL
 #rats <- rats[,2:6]
@@ -103,7 +103,7 @@ sigma2[i,1] = 1/rgamma(n=1,shape=(150/2)+a, scale=(solve( .5*total_resid + solve
 tempp3 <- 0
 for (jj in 1:30) {
 tempp1 <- matrix(c(theta_int[jj,i], theta_rate[jj,i]), nrow=2) - matrix(theta0[,i], nrow=2)
-tempp2 <- t(tempp1)%*%tempp1
+tempp2 <- tempp1%*%t(tempp1)
 tempp3 <- tempp3 + tempp2
 }
 

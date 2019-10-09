@@ -10,6 +10,7 @@
 
 # Matlab Files
 *.m
+
 # Output files from R CMD build
 /*.tar.gz
 
@@ -37,3 +38,8 @@ vignettes/*.pdf
 
 # Shiny token, see https://shiny.rstudio.com/articles/shinyapps.html
 rsconnect/
+
+# Data Files
+*.csv
+*.txt
+

@@ -45,7 +45,7 @@ iter <- 1e4 # declare the number of iterations
 burn <- 5e2 # declare the length of the burn-in
 
 #---------------------------------
-# Set lengths of parmaeter vectors
+# Set lengths of parameter vectors
 #---------------------------------
 sigma2 <- matrix(0, nrow = iter, ncol = 1)
 theta0 <- matrix(0, nrow = 2, ncol = iter)

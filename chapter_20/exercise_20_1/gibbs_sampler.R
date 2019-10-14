@@ -7,36 +7,39 @@
 rm(list = ls())
 set.seed(123)
 
+# -----------------------------
+# Impulse Resonse
+# -----------------------------
 construct_IR <- function(beta, Sig, n_hz, shock) {
   nn <- dim(Sig)[1]
-  p <- (size(beta, 1) / n - 1) / n
+  pp <- (dim(beta)[1] / nn - 1) / nn
   CSig <- t(chol(Sig))
-  tmpZ1 <- matrix(0, nrow = p, ncol = n)
-  tmpZ <- matrix(0, nrow = p, ncol = n)
-  Yt1 <- CSig * shock
-  Yt <- matrix(0, nrow = n)
-  yIR <- matrix(0, nrow = n_hz, ncol = n)
+  tmpZ1 <- matrix(0, nrow = pp, ncol = nn)
+  tmpZ <- matrix(0, nrow = pp, ncol = nn)
+  Yt1 <- CSig %*% shock
+  Yt <- matrix(0, nrow = nn)
+  yIR <- matrix(0, nrow = n_hz, ncol = nn)
   yIR[1, ] <- t(Yt1)
   for (t in 2:n_hz) {
-    # % update the regressors
-    tmpZ <- rbind(t(Yt), tmpZ[1:end - 1, ])
-    tmpZ1 <- rbind(t(Yt1), tmpZ1[1:end - 1, ])
-    # % evolution of variables if a shock hits
-    e <- CSig * matrix(rnorm(n, 1))
-    Z1 <- matrix(c(t(tmpZ1)), nrow = 1, ncol = n * p)
-    Xt1 <- diag(n) %x% rbind(1, Z1)
-    Yt1 <- Xt1 * beta + e
-    # % evolution of variables if no shocks hit
-    
-    Z <- matrix(c(t(tmpZ1)), nrow = 1, ncol = n * p)
-    Xt <- diag(n) %x% rbind(1, Z1)
-    Yt <- Xt * beta + e
-    # % the IR is the difference of the two scenarios
-    yIR[t, ] <- t(Yt1 - Yt)
+    # update the regressors
+    len <- dim(tmpZ)[1]
+    tmpZ <- rbind(t(Yt), tmpZ[1:(len - 1), ])
+    tmpZ1 <- rbind(t(Yt1), tmpZ1[1:(len - 1), ])
+    # evolution of variables if a shock hits
+    e <- CSig %*% matrix(rnorm(nn, 1))
+    Z1 <- matrix(c(t(tmpZ1)), nrow = 1, ncol = nn * pp)
+    Xt1 <- diag(nn) %x% cbind(1, Z1)
+    Yt1 <- Xt1 %*% beta + e
+    # evolution of variables if no shocks hit
+
+    Z <- matrix(c(t(tmpZ)), nrow = 1, ncol = nn * pp)
+    Xt <- diag(nn) %x% cbind(1, Z)
+    Yt <- Xt %*% beta + e
+    # the IR is the difference of the two scenarios
+    yIR[t, ] <- c(t(Yt1 - Yt))
   }
+  return(yIR)
 }
-
-
 
 us_macro <- read.csv("./chapter_20/exercise_20_1/US_macrodata.csv")
 us_macro <- as.matrix(us_macro[!is.na(us_macro$INFLATION), 2:4])
@@ -45,10 +48,9 @@ tt <- nrow(us_macro) # number of observations
 nn <- ncol(us_macro) # number of variables
 pp <- 2 # lags; to be specified by the researcher
 dd <- nn * (1 + nn * pp)
+n_hz <- 20
 
 y <- matrix(c(t(us_macro[-(1:(pp)), ])))
-# assertthat::are_equal(dim(y)[1], (tt-pp)*(nn))
-# assertthat::are_equal(dim(y)[2],1)
 
 # -----------------------------
 # Declare the prior values
@@ -65,7 +67,7 @@ S0 <- diag(nn)
 diag(S0) <- rep(1, nn)
 
 
-niter <- 2e4
+niter <- 2e3
 burn <- 1e3
 
 #---------------------------------
@@ -73,6 +75,7 @@ burn <- 1e3
 #---------------------------------
 store_beta <- matrix(NA, nrow = dd, ncol = niter)
 store_Sigma <- array(NA, dim = c(nn, nn, niter))
+store_yIR <- matrix(0, nrow = n_hz, ncol = nn)
 
 #----------------------
 # Set initial values
@@ -96,7 +99,6 @@ Sigma <- e %*% t(e) / tt
 # Begin the Gibbs Sampler
 #----------------------
 for (i in 1:(niter + burn)) {
-
   # Do conditional for beta
   XiSig <- t(X) %*% (diag((tt - pp)) %x% solve(Sigma))
   Dtemp <- solve(XiSig %*% X + invSigma0)
@@ -124,20 +126,22 @@ for (i in 1:(niter + burn)) {
     nsim <- i - burn
     store_beta[, nsim] <- beta
     store_Sigma[, , nsim] <- Sigma
-  }
 
-  ## calculate impulse response
-  CSig <-  t(chol(Sig[,,1]))
-  #100 basis pts rather than 1 std. dev.
-  shock <- matrix(c(0, 0,1))%*%solve(CSig(nn,nn))
-  yIR <- construct_IR(beta,Sig,n_hz,shock)
-  store_yIR <-  store_yIR + yIR 
-  
+    # calculate impulse response
+    CSig <- t(chol(Sigma))
+    # 100 basis pts rather than 1 std. dev.
+    shock <- matrix(c(0, 0, 1)) / CSig[nn, nn]
+    yIR <- construct_IR(beta = beta, Sig = Sigma, n_hz = n_hz, shock = shock)
+
+    store_yIR <- store_yIR + yIR
+  }
 }
 
-round(apply(store_beta, MARGIN = c(1), FUN = mean), 4)
-round(apply(store_Sigma, MARGIN = c(1, 2), FUN = mean), 4)
+beta_hat <- round(apply(store_beta, MARGIN = c(1), FUN = mean), 4)
+sigma_hat <- round(apply(store_Sigma, MARGIN = c(1, 2), FUN = mean), 4)
+yIR_hat <- store_yIR / niter
 
-
-
-
+par(mfrow = c(3, 1))
+plot.ts(yIR_hat[, 1], ylab = "Inflation", main = "Impulse Response")
+plot.ts(yIR_hat[, 2], ylab = "Unemployment Rate")
+plot.ts(yIR_hat[, 3], ylab = "Fed Funds Rate")

@@ -7,6 +7,37 @@
 rm(list = ls())
 set.seed(123)
 
+construct_IR <- function(beta, Sig, n_hz, shock) {
+  nn <- dim(Sig)[1]
+  p <- (size(beta, 1) / n - 1) / n
+  CSig <- t(chol(Sig))
+  tmpZ1 <- matrix(0, nrow = p, ncol = n)
+  tmpZ <- matrix(0, nrow = p, ncol = n)
+  Yt1 <- CSig * shock
+  Yt <- matrix(0, nrow = n)
+  yIR <- matrix(0, nrow = n_hz, ncol = n)
+  yIR[1, ] <- t(Yt1)
+  for (t in 2:n_hz) {
+    # % update the regressors
+    tmpZ <- rbind(t(Yt), tmpZ[1:end - 1, ])
+    tmpZ1 <- rbind(t(Yt1), tmpZ1[1:end - 1, ])
+    # % evolution of variables if a shock hits
+    e <- CSig * matrix(rnorm(n, 1))
+    Z1 <- matrix(c(t(tmpZ1)), nrow = 1, ncol = n * p)
+    Xt1 <- diag(n) %x% rbind(1, Z1)
+    Yt1 <- Xt1 * beta + e
+    # % evolution of variables if no shocks hit
+    
+    Z <- matrix(c(t(tmpZ1)), nrow = 1, ncol = n * p)
+    Xt <- diag(n) %x% rbind(1, Z1)
+    Yt <- Xt * beta + e
+    # % the IR is the difference of the two scenarios
+    yIR[t, ] <- t(Yt1 - Yt)
+  }
+}
+
+
+
 us_macro <- read.csv("./chapter_20/exercise_20_1/US_macrodata.csv")
 us_macro <- as.matrix(us_macro[!is.na(us_macro$INFLATION), 2:4])
 
@@ -94,7 +125,19 @@ for (i in 1:(niter + burn)) {
     store_beta[, nsim] <- beta
     store_Sigma[, , nsim] <- Sigma
   }
+
+  ## calculate impulse response
+  CSig <-  t(chol(Sig[,,1]))
+  #100 basis pts rather than 1 std. dev.
+  shock <- matrix(c(0, 0,1))%*%solve(CSig(nn,nn))
+  yIR <- construct_IR(beta,Sig,n_hz,shock)
+  store_yIR <-  store_yIR + yIR 
+  
 }
 
 round(apply(store_beta, MARGIN = c(1), FUN = mean), 4)
 round(apply(store_Sigma, MARGIN = c(1, 2), FUN = mean), 4)
+
+
+
+

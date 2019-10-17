@@ -9,7 +9,6 @@ set.seed(123)
 library(xts)
 library(Matrix)
 
-
 us_macro <- read.csv("./chapter_20/exercise_20_2/US_macrodata.csv")
 Yraw <- as.matrix(us_macro[!is.na(us_macro$INFLATION), 2:4])
 
@@ -55,7 +54,6 @@ diag(A1) <- a1
 A2 <- matrix(rep(1, pp), ncol = pp) %x% A1
 A <- c(cbind(a3, A2))
 
-
 # -----------------------------
 # Calculate Variance Matrix
 # -----------------------------
@@ -66,9 +64,8 @@ R <- bdiag(diag(nn), diag((1:pp)^-2) %x% diag(nn^2))
 V0 <- diag(A) %*% Sig1 %*% invSig1 %*% R
 invV0 <- solve(V0)
 
-
 #---------------------------------
-# Posterior
+# Calculate the Posterior
 #---------------------------------
 for (j in (pp + 1):tt) {
   X_temp <- diag(nn) %x% cbind(1, t(c(t(Yraw[(j - 1):(j - pp), , drop = FALSE]))))
@@ -88,5 +85,3 @@ A1 <- matrix(beta_hat[(nn+1):(nn*(1+nn))], ncol = nn)
 # ---------------------------------------------------------------------------------------
 # # Y(t) =  b + A1 * Y(t-1) +  A2 * Y(t-2) + ... + Ap * Y(t-p)
 # ---------------------------------------------------------------------------------------
-
-

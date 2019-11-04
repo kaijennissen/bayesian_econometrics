@@ -1,3 +1,10 @@
+# -----------------------------------------------------------------------------
+# R Code for Exercise 18.1
+# Chan, J., Koop, G., Poirier, D.J. and Tobias, J.L. (2019).
+# Bayesian Econometric Methods (2nd edition).
+# Cambridge: Cambridge University Press.
+# -----------------------------------------------------------------------------
+
 library(Matrix)
 library(svMisc)
 
@@ -9,13 +16,18 @@ y <- as.matrix(y)
 colnames(y) <- NULL
 TT <- dim(y)[1]
 
+#-------------------
 # priors
+#-------------------
+# tau_0
 a0 <- 5
 b0 <- 100
 
+# sigma^2
 ny_sigma0 <- 3
 S_sigma0 <- 2
 
+# omega^2
 ny_omega0 <- 3
 S_omega0 <- 2 * 0.25^2
 
@@ -29,6 +41,7 @@ HH <- as.matrix(HH)
 nsim <- 1e4
 nburn <- 1e3
 
+# store
 store_tau <- matrix(0, nrow = nsim, ncol = TT)
 store_tau0 <- matrix(0, nrow = nsim, ncol = 1)
 store_sigma <- matrix(0, nrow = nsim, ncol = 1)
@@ -37,11 +50,9 @@ store_omega <- matrix(0, nrow = nsim, ncol = 1)
 sigma2 <- 1
 omega2 <- .1
 tau0 <- 5
-# tau <- y
 
 bar_steps <- (nsim + nburn) / 100
 for (ii in 1:(nsim + nburn)) {
-
 
   # draw from conditional for tau
   K_tau <- HH / omega2 + diag(TT) / sigma2
@@ -58,7 +69,6 @@ for (ii in 1:(nsim + nburn)) {
   # draw from condition for omega^2
   S_omega_temp <- S_omega0 + 0.5 * t(tau - tau0) %*% HH %*% (tau - tau0)
   omega2 <- 1 / rgamma(n = 1, shape = ny_omega0 + TT / 2, scale = 1 / S_omega_temp)
-
 
   # draw from conditional for tau_0
   K_tau0 <- 1 / b0 + 1 / omega2
@@ -88,11 +98,12 @@ library(ggplot2)
 library(lubridate)
 library(tidyverse)
 tt <- expand.grid(c(1959:2015), c(1:4))
-xx <- lubridate::yq(paste(tt$Var1, tt$Var2, sep="-"))
-tbl <- tibble(inflation = y, 'posterior mean' = colMeans(store_tau))
-tbl <- mutate(tbl, t=sort(xx[-1]))
+xx <- lubridate::yq(paste(tt$Var1, tt$Var2, sep = "-"))
+tbl <- tibble(inflation = y, "posterior mean" = colMeans(store_tau))
+tbl <- mutate(tbl, t = sort(xx[-1]))
 
 
-tbl %>% gather('series', 'value', -t) %>% 
-ggplot(aes(x=t, y=value, lty = series, col=series)) +
+tbl %>%
+  gather("series", "value", -t) %>%
+  ggplot(aes(x = t, y = value, lty = series, col = series)) +
   geom_line()

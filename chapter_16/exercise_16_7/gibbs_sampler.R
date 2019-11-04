@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# R Code for Exercise 13.4
+# R Code for Exercise 16.7
 # Chan, J., Koop, G., Poirier, D.J. and Tobias, J.L. (2019).
 # Bayesian Econometric Methods (2nd edition).
 # Cambridge: Cambridge University Press.

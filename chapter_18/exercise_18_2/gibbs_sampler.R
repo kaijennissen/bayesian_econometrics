@@ -5,7 +5,6 @@
 # Cambridge: Cambridge University Press.
 # -----------------------------------------------------------------------------
 library(Matrix)
-library(svMisc)
 library(progress)
 
 rm(list = ls())
@@ -22,13 +21,13 @@ p <- 2
 # priors
 #-------------------
 # phi
+phi_0 <- matrix(c(1.3, -0.7))
 V_phi <- diag(2)
 invV_phi <- solve(V_phi)
-phi_0 <- matrix(c(1.3, -0.7))
 
 # gamma
-V_gamma <- 100 * diag(2)
 gamma_0 <- matrix(c(750, 750))
+V_gamma <- 100 * diag(2)
 invV_gamma <- solve(V_gamma)
 
 # sigma2_tau
@@ -46,14 +45,14 @@ sigma2_c <- .5
 sigma2_tau <- .001
 tau0 <- matrix(c(y[1], y[1]))
 
-# H2
+# H_2
 diags <- list(rep(1, TT), rep(-2, TT - 1), rep(1, TT - 2))
-H2 <- bandSparse(TT, k = c(0, -1, -2), diag = diags, symm = FALSE)
-invH_2 <- solve(H2)
-HH_2 <- t(H2) %*% H2
+H_2 <- bandSparse(TT, k = c(0, -1, -2), diag = diags, symm = FALSE)
+invH_2 <- solve(H_2)
+HH_2 <- t(H_2) %*% H_2
 
 # H_phi
-diags_phi <- list(rep(1, TT), rep(phi[1], TT - 1), rep(phi[2], TT - 2))
+diags_phi <- list(rep(1, TT), rep(-phi[1], TT - 1), rep(-phi[2], TT - 2))
 H_phi <- bandSparse(TT, k = c(0, -1, -2), diag = diags_phi, symm = FALSE)
 HH_phi <- t(H_phi) %*% H_phi
 
@@ -61,9 +60,7 @@ HH_phi <- t(H_phi) %*% H_phi
 X_gamma <- cbind(c(2:(TT + 1)), -c(1:TT))
 
 # alpha_tau_tilde
-alpha_tau_tilde <- matrix(c(2 * tau0[2] - tau0[1], -tau0[2], rep(0, TT - 2)))
-
-
+alpha_tau_tilde <- 
 
 
 nsim <- 1e4
@@ -91,9 +88,10 @@ for (ii in 1:(nsim + nburn)) {
 
 
   # draw from conditional for tau
+  alpha_tau_tilde <- matrix(c(2 * tau0[2] - tau0[1], -tau0[2], rep(0, TT - 2)))
   alpha_tau <- invH_2 %*% alpha_tau_tilde
   K_tau <- HH_phi / sigma2_c + HH_2 / sigma2_tau
-  L_tau <- chol(K_tau)
+  L_tau <- chol(K_tau) # returns upper
   XX_tau <- (HH_phi %*% y) / sigma2_c + (HH_2 %*% alpha_tau) / sigma2_tau
   tau_hat <- solve(K_tau, XX_tau)
   Z_tau <- matrix(rnorm(n = TT, mean = 0, sd = 1))
@@ -105,7 +103,7 @@ for (ii in 1:(nsim + nburn)) {
   X_phi <- cbind(c(0, c[1:(TT - 1)]), c(0, 0, c[1:(TT - 2)]))
   XX_phi <- t(X_phi) %*% X_phi
   K_phi <- invV_phi + XX_phi / sigma2_c
-  L_phi <- t(chol(K_phi))
+  L_phi <- chol(K_phi) #
   XX <- invV_phi %*% phi_0 + t(X_phi) %*% c / sigma2_c
   phi_hat <- solve(K_phi, XX)
   Z_phi <- matrix(rnorm(n = p, mean = 0, sd = 1))
@@ -116,7 +114,7 @@ for (ii in 1:(nsim + nburn)) {
   if (sum(phic) < .99 && phic[2] - phic[1] < .99 && phic[2] > -.99) {
     phi <- phic
     # calculate H_phi in every iteration
-    diags_phi <- list(rep(1, TT), rep(phi[1], TT - 1), rep(phi[2], TT - 2))
+    diags_phi <- list(rep(1, TT), rep(-phi[1], TT - 1), rep(-phi[2], TT - 2))
     H_phi <- bandSparse(TT, k = c(0, -1, -2), diag = diags, symm = FALSE)
     HH_phi <- as.matrix(t(H_phi) %*% H_phi)
     count_phi <- count_phi + 1

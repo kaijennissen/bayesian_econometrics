@@ -6,6 +6,8 @@
 # -----------------------------------------------------------------------------
 library(Matrix)
 library(progress)
+library(tictoc)
+# library(Rfast)
 
 rm(list = ls())
 
@@ -25,12 +27,12 @@ p <- 2
 # phi
 phi_0 <- matrix(c(1.3, -0.7))
 V_phi <- diag(2)
-invV_phi <- solve(V_phi)
+invV_phi <- Rfast::spdinv(V_phi)
 
 # gamma
 gamma_0 <- matrix(c(750, 750))
 V_gamma <- 100 * diag(2)
-invV_gamma <- solve(V_gamma)
+invV_gamma <- Rfast::spdinv(V_gamma)
 
 # sigma2_tau
 b_sigma2_tau <- 0.01
@@ -49,26 +51,22 @@ tau0 <- matrix(c(y[1], y[1]))
 
 # H_2
 diags <- list(rep(1, TT), rep(-2, TT - 1), rep(1, TT - 2))
-H_2 <- bandSparse(TT, k = c(0, -1, -2), diag = diags, symm = FALSE)
-invH_2 <- solve(H_2)
-HH_2 <- t(H_2) %*% H_2
+H_2 <- as.matrix(Matrix::bandSparse(TT, k = c(0, -1, -2), diag = diags, symm = FALSE))
+invH_2 <- spdinv(H_2)
+HH_2 <- Rfast::mat.mult(Rfast::transpose(H_2), H_2) #t(H_2) %*% H_2
 
 
 # H_phi
 diags_phi <- list(rep(1, TT), rep(-phi[1], TT - 1), rep(-phi[2], TT - 2))
-H_phi <- bandSparse(TT, k = c(0, -1, -2), diag = diags_phi, symm = FALSE)
-HH_phi <- t(H_phi) %*% H_phi
+H_phi <- as.matrix(Matrix::bandSparse(TT, k = c(0, -1, -2), diag = diags_phi, symm = FALSE))
+HH_phi<- Rfast::mat.mult(t(H_phi), H_phi)#  crossprod(H_phi, H_phi) #t(H_phi) %*% H_phi
 
 # X_gamma
 X_gamma <- cbind(c(2:(TT + 1)), -c(1:TT))
 
-# alpha_tau_tilde
-alpha_tau_tilde <- 
 
-
-nsim <- 1e5
-nburn <- 1e4
-total_runs <- nsim+nburn
+nsim <- 1e1
+nburn <- 1e1
 
 store_tau <- matrix(0, nrow = nsim, ncol = TT)
 store_gamma <- matrix(0, nrow = nsim, ncol = 2)
@@ -79,39 +77,40 @@ store_phi <- matrix(0, nrow = nsim, ncol = 2)
 n_grid <- 500
 count_phi <- 0
 
-step_size <- total_runs / 100
+step_size <- (nsim + nburn) / 100
 pb <- progress_bar$new(
   format = "[:bar] :percent in :elapsed",
   total = nsim+nburn, clear = FALSE, width = 60
 )
 
-for (ii in 1:total_runs ) {
+
+for (ii in 1:(nsim + nburn)) {
     if(ii==1) cat("\014")
     pb$tick()
     Sys.sleep(1 / 100)
 
+  
   # draw from conditional for tau
   alpha_tau_tilde <- matrix(c(2 * tau0[2] - tau0[1], -tau0[2], rep(0, TT - 2)))
-  alpha_tau <- invH_2 %*% alpha_tau_tilde
+  alpha_tau <- Rfast::mat.mult(invH_2, alpha_tau_tilde)#invH_2 %*% alpha_tau_tilde
   K_tau <- HH_phi / sigma2_c + HH_2 / sigma2_tau
-  L_tau <- chol(K_tau) # returns upper
-  XX_tau <- (HH_phi %*% y) / sigma2_c + (HH_2 %*% alpha_tau) / sigma2_tau
+  L_tau <- Rfast::cholesky(K_tau) # returns upper
+  XX_tau <-Rfast:: mat.mult(HH_phi, y) / sigma2_c + Rfast::mat.mult(HH_2, alpha_tau) / sigma2_tau
   tau_hat <- solve(K_tau, XX_tau)
-  Z_tau <- matrix(rnorm(n = TT, mean = 0, sd = 1))
-  tau <- tau_hat + solve(K_tau) %*% Z_tau
-  
+  Z_tau <- matrix(Rfast::Rnorm(n = TT, m = 0, s = 1))
+  tau <- tau_hat + Rfast::mat.mult(chol2inv(K_tau), Z_tau)
+
 
   # draw from conditional for phi
   c <- y - tau
   X_phi <- cbind(c(0, c[1:(TT - 1)]), c(0, 0, c[1:(TT - 2)]))
-  XX_phi <- t(X_phi) %*% X_phi
+  XX_phi <- Rfast::mat.mult(Rfast::transpose(X_phi), X_phi)
   K_phi <- invV_phi + XX_phi / sigma2_c
-  L_phi <- chol(K_phi) #
-  XX <- invV_phi %*% phi_0 + t(X_phi) %*% c / sigma2_c
-  phi_hat_inv <- chol2inv(L_phi)%*%XX
+  L_phi <- Rfast::cholesky(K_phi) #
+  XX <- Rfast::mat.mult(invV_phi, phi_0) + Rfast::mat.mult(Rfast::transpose(X_phi), c) / sigma2_c
   phi_hat <- solve(K_phi, XX)
-  Z_phi <- matrix(rnorm(n = p, mean = 0, sd = 1))
-  phic <- phi_hat + solve(L_phi) %*% Z_phi
+  Z_phi <- matrix(Rfast::Rnorm(n = p, m = 0, s = 1))
+  phic <- phi_hat + Rfast::mat.mult(chol2inv(K_phi), Z_phi)
   # stationarity region for AR(2)
   # 1) phi_1 + phi_2 < 1
   # 2)
@@ -119,15 +118,15 @@ for (ii in 1:total_runs ) {
     phi <- phic
     # calculate H_phi in every iteration
     diags_phi <- list(rep(1, TT), rep(-phi[1], TT - 1), rep(-phi[2], TT - 2))
-    H_phi <- bandSparse(TT, k = c(0, -1, -2), diag = diags, symm = FALSE)
-    HH_phi <- as.matrix(t(H_phi) %*% H_phi)
+    H_phi <-  as.matrix(bandSparse(TT, k = c(0, -1, -2), diag = diags_phi, symm = FALSE))
+    HH_phi <-Rfast::mat.mult(Rfast::transpose(H_phi),  H_phi)
     count_phi <- count_phi + 1
   }
 
 
   # draw from condition for sigma^2_c
-  S_sigma2_c_temp <- S_sigma2_c + 0.5 * t(y - tau) %*% (HH_phi %*% (y - tau))
-  sigma2_c <- 1 / rgamma(n = 1, shape = ny_sigma2_c + TT / 2, scale = 1 / as.matrix(S_sigma2_c_temp))
+  S_sigma2_c_temp <- S_sigma2_c + 0.5 * Rfast::mat.mult(Rfast::mat.mult(Rfast::transpose(y - tau), HH_phi), (y - tau))
+  sigma2_c <- 1 / rgamma(n = 1, shape = ny_sigma2_c + TT / 2, scale = 1 / S_sigma2_c_temp)
 
 
   # draw from conditional for sigma^2_tau
@@ -145,18 +144,18 @@ for (ii in 1:total_runs ) {
 
 
   # draw from conditional for gamma
-  K_gamma <- invV_gamma + t(X_gamma) %*% (HH_2 %*% X_gamma )/ sigma2_tau
+  K_gamma <- invV_gamma + Rfast::mat.mult(Rfast::transpose(X_gamma),  Rfast::mat.mult(HH_2, X_gamma) )/ sigma2_tau
   L_gamma <- chol(K_gamma)
-  XX <- invV_gamma %*% gamma_0 + t(X_gamma) %*% (HH_2 %*% tau) / sigma2_tau
+  XX <- Rfast::mat.mult(invV_gamma, gamma_0) +  Rfast::mat.mult(Rfast::transpose(X_gamma),  Rfast::mat.mult(HH_2, tau)) / sigma2_tau
   gamma_hat <- solve(K_gamma, XX)
-  Z_gamma <- rnorm(n = p, mean = 0, sd = 1)
-  gamma <- gamma_hat + solve(L_gamma) %*% Z_gamma
+  Z_gamma <- matrix(Rfast::Rnorm(n = p, m = 0, s = 1))
+  gamma <- gamma_hat + Rfast::mat.mult(solve(L_gamma), Z_gamma)
 
   if (ii > nburn) {
     nn <- ii - nburn
-    store_tau[nn, ] <- tau@x
-    store_phi[nn, ] <- phi@x
-    store_gamma[nn, ] <- gamma@x
+    store_tau[nn, ] <- tau[,,drop=TRUE]
+    store_phi[nn, ] <- phi[,,drop=TRUE]
+    store_gamma[nn, ] <- gamma[,,drop=TRUE]
     store_sigma2_tau[nn] <- sigma2_tau
     store_sigma2_c[nn] <- sigma2_c
   }
@@ -167,6 +166,35 @@ phi_post <- colMeans(store_phi)
 gamma_post <- colMeans(store_gamma)
 sigma2_tau_post <- colMeans(store_sigma2_tau)
 sigma2_c_post <- colMeans(store_sigma2_c)
+
+
+
+
+## Rjags
+
+library(rjags)
+library(coda)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

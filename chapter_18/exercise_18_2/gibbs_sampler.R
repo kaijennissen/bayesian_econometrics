@@ -48,8 +48,8 @@ sigma2_tau <- .001
 tau0 <- matrix(c(y[1], y[1]))
 
 # H_2
-diags <- list(rep(1, TT), rep(-2, TT - 1), rep(1, TT - 2))
-H_2 <- bandSparse(TT, k = c(0, -1, -2), diag = diags, symm = FALSE)
+diags_h2 <- list(rep(1, TT), rep(-2, TT - 1), rep(1, TT - 2))
+H_2 <- bandSparse(TT, k = c(0, -1, -2), diag = diags_h2, symm = FALSE)
 invH_2 <- solve(H_2)
 HH_2 <- t(H_2) %*% H_2
 
@@ -61,9 +61,6 @@ HH_phi <- t(H_phi) %*% H_phi
 
 # X_gamma
 X_gamma <- cbind(c(2:(TT + 1)), -c(1:TT))
-
-# alpha_tau_tilde
-alpha_tau_tilde <- 
 
 
 nsim <- 2e4
@@ -98,7 +95,7 @@ for (ii in 1:total_runs ) {
   XX_tau <- (HH_phi %*% y) / sigma2_c + (HH_2 %*% alpha_tau) / sigma2_tau
   tau_hat <- solve(K_tau, XX_tau)
   Z_tau <- matrix(rnorm(n = TT, mean = 0, sd = 1))
-  tau <- tau_hat + solve(K_tau) %*% Z_tau
+  tau <- tau_hat + solve(L_tau) %*% Z_tau
   
 
   # draw from conditional for phi
@@ -119,14 +116,13 @@ for (ii in 1:total_runs ) {
     phi <- phic
     # calculate H_phi in every iteration
     diags_phi <- list(rep(1, TT), rep(-phi[1], TT - 1), rep(-phi[2], TT - 2))
-    H_phi <- bandSparse(TT, k = c(0, -1, -2), diag = diags, symm = FALSE)
+    H_phi <- bandSparse(TT, k = c(0, -1, -2), diag = diags_phi, symm = FALSE)
     HH_phi <- as.matrix(t(H_phi) %*% H_phi)
     count_phi <- count_phi + 1
   }
 
 
   # draw from condition for sigma^2_c
-  c <- y-tau
   S_sigma2_c_temp <- S_sigma2_c + 0.5 * t(y - tau) %*% (HH_phi %*% (y - tau))
   sigma2_c <- 1 / rgamma(n = 1, shape = ny_sigma2_c + TT / 2, scale = 1 / as.matrix(S_sigma2_c_temp))
 
@@ -137,7 +133,8 @@ for (ii in 1:total_runs ) {
     -TT / 2 * log(x) - sum(diff(del_tau)[-TT]**2) / (2 * x)
   }
   # sum((del_tau[2:TT]-del_tau[1:(TT-1)])**2)
-  sigma2_tau_grid <- seq(from = runif(1) / 1000, to = b_sigma2_tau - runif(1) / 1000, length.out = n_grid)
+  #sigma2_tau_grid <- seq(from = 0, to = b_sigma2_tau, length.out = n_grid)
+  sigma2_tau_grid <- seq(from = runif(1) / 10000, to = b_sigma2_tau - runif(1) / 1000, length.out = n_grid)
   lp_sigtau2 <- f_tau(sigma2_tau_grid)
   p_sigtau2 <- exp(lp_sigtau2 - max(lp_sigtau2))
   p_sigtau2 <- p_sigtau2 / sum(p_sigtau2)

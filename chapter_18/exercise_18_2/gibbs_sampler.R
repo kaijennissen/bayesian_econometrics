@@ -66,8 +66,8 @@ X_gamma <- cbind(c(2:(TT + 1)), -c(1:TT))
 alpha_tau_tilde <- 
 
 
-nsim <- 1e5
-nburn <- 1e4
+nsim <- 2e4
+nburn <- 5e3
 total_runs <- nsim+nburn
 
 store_tau <- matrix(0, nrow = nsim, ncol = TT)
@@ -126,6 +126,7 @@ for (ii in 1:total_runs ) {
 
 
   # draw from condition for sigma^2_c
+  c <- y-tau
   S_sigma2_c_temp <- S_sigma2_c + 0.5 * t(y - tau) %*% (HH_phi %*% (y - tau))
   sigma2_c <- 1 / rgamma(n = 1, shape = ny_sigma2_c + TT / 2, scale = 1 / as.matrix(S_sigma2_c_temp))
 

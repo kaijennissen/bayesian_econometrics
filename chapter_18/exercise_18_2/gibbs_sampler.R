@@ -6,9 +6,12 @@
 # -----------------------------------------------------------------------------
 library(Matrix)
 library(progress)
+library(microbenchmark)
+library(Rcpp)
+library(Rfast)
+
 
 rm(list = ls())
-
 
 #data <- read.csv("./chapter_18/exercise_18_2/USPCE_2015Q4.csv", header = FALSE)
 data <- read.csv("./chapter_18/exercise_18_2/usgdp.csv", header = FALSE)
@@ -62,9 +65,13 @@ HH_phi <- t(H_phi) %*% H_phi
 # X_gamma
 X_gamma <- cbind(c(2:(TT + 1)), -c(1:TT))
 
+f_tau <- function(x, del_tau, TT) {
+  -TT / 2 * log(x) - sum(diff(del_tau)[-TT]**2) / (2 * x)
+}
 
-nsim <- 2e4
-nburn <- 5e3
+
+nsim <- 1e4
+nburn <- 1e3
 total_runs <- nsim+nburn
 
 store_tau <- matrix(0, nrow = nsim, ncol = TT)
@@ -82,13 +89,14 @@ pb <- progress_bar$new(
   total = nsim+nburn, clear = FALSE, width = 60
 )
 
+
 for (ii in 1:total_runs ) {
     if(ii==1) cat("\014")
     pb$tick()
     Sys.sleep(1 / 100)
 
   # draw from conditional for tau
-  alpha_tau_tilde <- matrix(c(2 * tau0[2] - tau0[1], -tau0[2], rep(0, TT - 2)))
+  alpha_tau_tilde <- matrix(c(2 * tau0[1] - tau0[2], -tau0[1], rep(0, TT - 2)))
   alpha_tau <- invH_2 %*% alpha_tau_tilde
   K_tau <- HH_phi / sigma2_c + HH_2 / sigma2_tau
   L_tau <- chol(K_tau) # returns upper
@@ -123,23 +131,21 @@ for (ii in 1:total_runs ) {
 
 
   # draw from condition for sigma^2_c
-  S_sigma2_c_temp <- S_sigma2_c + 0.5 * t(y - tau) %*% (HH_phi %*% (y - tau))
+  #S_sigma2_c_temp <- S_sigma2_c + 0.5 * t(y - tau) %*% (HH_phi %*% (y - tau))
+  S_sigma2_c_temp <- S_sigma2_c + 0.5 * t(c - X_phi%*%phi) %*% (c - X_phi%*%phi)
   sigma2_c <- 1 / rgamma(n = 1, shape = ny_sigma2_c + TT / 2, scale = 1 / as.matrix(S_sigma2_c_temp))
 
 
   # draw from conditional for sigma^2_tau
   del_tau <- c(tau0[1], tau[1:TT]) - c(tau0[2], tau0[1], tau[1:(TT - 1)])
-  f_tau <- function(x) {
-    -TT / 2 * log(x) - sum(diff(del_tau)[-TT]**2) / (2 * x)
-  }
   # sum((del_tau[2:TT]-del_tau[1:(TT-1)])**2)
   #sigma2_tau_grid <- seq(from = 0, to = b_sigma2_tau, length.out = n_grid)
-  sigma2_tau_grid <- seq(from = runif(1) / 10000, to = b_sigma2_tau - runif(1) / 1000, length.out = n_grid)
-  lp_sigtau2 <- f_tau(sigma2_tau_grid)
+  sigma2_tau_grid <- seq(from = runif(1) / 1000, to = b_sigma2_tau - runif(1) / 1000, length.out = n_grid)
+  lp_sigtau2 <- f_tau(sigma2_tau_grid, del_tau, TT)
   p_sigtau2 <- exp(lp_sigtau2 - max(lp_sigtau2))
   p_sigtau2 <- p_sigtau2 / sum(p_sigtau2)
   cdf_sigtau2 <- cumsum(p_sigtau2)
-  sigma2_tau <- sigma2_tau_grid[which(runif(1) < cdf_sigtau2, TRUE)[1]]
+  sigma2_tau <- sigma2_tau_grid[runif(1) < cdf_sigtau2][1]
 
 
   # draw from conditional for gamma

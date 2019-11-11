@@ -9,7 +9,6 @@ library(progress)
 
 rm(list = ls())
 
-
 #data <- read.csv("./chapter_18/exercise_18_2/USPCE_2015Q4.csv", header = FALSE)
 data <- read.csv("./chapter_18/exercise_18_2/usgdp.csv", header = FALSE)
 y <- ts(data = data, start = c(1959, 1), freq = 4)
@@ -63,8 +62,8 @@ HH_phi <- t(H_phi) %*% H_phi
 X_gamma <- cbind(c(2:(TT + 1)), -c(1:TT))
 
 
-nsim <- 2e4
-nburn <- 5e3
+nsim <- 1e2
+nburn <- 1e2
 total_runs <- nsim+nburn
 
 store_tau <- matrix(0, nrow = nsim, ncol = TT)
@@ -82,10 +81,11 @@ pb <- progress_bar$new(
   total = nsim+nburn, clear = FALSE, width = 60
 )
 
-for (ii in 1:total_runs ) {
-    if(ii==1) cat("\014")
-    pb$tick()
-    Sys.sleep(1 / 100)
+tic()
+for (ii in 1:100) {
+    #if(ii==1) cat("\014")
+    #pb$tick()
+    #Sys.sleep(1 / 100)
 
   # draw from conditional for tau
   alpha_tau_tilde <- matrix(c(2 * tau0[2] - tau0[1], -tau0[2], rep(0, TT - 2)))
@@ -159,6 +159,7 @@ for (ii in 1:total_runs ) {
     store_sigma2_c[nn] <- sigma2_c
   }
 }
+toc()
 
 tau_post <- colMeans(store_tau)
 phi_post <- colMeans(store_phi)

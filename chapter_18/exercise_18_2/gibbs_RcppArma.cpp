@@ -238,10 +238,10 @@ List gibbsC(int nsim, int nburn, mat y)
         // ------------------------------------------------------------
         // draw from conditional for gamma
         // ------------------------------------------------------------
-        mat K_gamma = invV_gamma + X_gamma.t() * (HH_2 * X_gamma) / sigma2_tau;
-        mat XX_temp_gamma = invV_gamma * gamma_0 + X_gamma.t() * (HH_2 * tau) / sigma2_tau;
-        mat gamma_hat = solve(K_gamma, XX_temp_gamma);
-        mat gamma = gamma_hat + inv(chol(K_gamma)) * randn(2, 1);
+        K_gamma = invV_gamma + X_gamma.t() * (HH_2 * X_gamma) / sigma2_tau;
+        XX_temp_gamma = invV_gamma * gamma_0 + X_gamma.t() * (HH_2 * tau) / sigma2_tau;
+        gamma_hat = solve(K_gamma, XX_temp_gamma);
+        gamma = gamma_hat + inv(chol(K_gamma)) * randn(2, 1);
 
         // ------------------------------------------------------------
         // Store draws after burn-in period

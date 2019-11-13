@@ -5,23 +5,23 @@
 # Cambridge: Cambridge University Press.
 #--------------------------------------------------------------------------------------------------
 
-# 169.7934 sec
+# run time: 150 sec
 
 library(Matrix)
-library(progress)
 
 rm(list = ls())
-nsim <- 1e4
-nburn <- 1e3
+nsim <- 10000
+nburn <- 1000
 total_runs <- nsim+nburn
 
-#data <- read.csv("./chapter_18/exercise_18_2/USPCE_2015Q4.csv", header = FALSE)
 data <- read.csv("./chapter_18/exercise_18_2/usgdp.csv", header = FALSE)
 y <- ts(data = data, start = c(1959, 1), freq = 4)
 y <- c(log(y)) * 100
 y <- as.matrix(y)
 colnames(y) <- NULL
+
 now <- Sys.time()
+
 TT <- dim(y)[1]
 p <- 2
 
@@ -50,7 +50,7 @@ S_sigma2_c <- 2
 phi <- matrix(c(1.34, -0.7))
 sigma2_c <- .5
 sigma2_tau <- .001
-tau0 <- matrix(c(y[1], y[1]))
+gamma <- matrix(c(y[1], y[1]))  # gamma = (tau(-1), tau(0))'
 
 # H_2
 diags_h2 <- list(rep(1, TT), rep(-2, TT - 1), rep(1, TT - 2))
@@ -84,13 +84,11 @@ pb <- progress_bar$new(
 )
 
 
-for (ii in 1:(nsim+nburn)) {
-    #if(ii==1) cat("\014")
-    #pb$tick()
-    #Sys.sleep(1 / 100)
-
+for (ii in 1:total_runs) {
+  # gamma = (tau(-1), tau(0))'
   # draw from conditional for tau #----------------------------------------------------------------
-  alpha_tau_tilde <- matrix(c(2 * tau0[2] - tau0[1], -tau0[2], rep(0, TT - 2)))
+ # alpha_tau_tilde <- matrix(c(2 * gamma[2] - gamma[1], -gamma[2], rep(0, TT - 2))) # my implementation
+  alpha_tau_tilde <- matrix(c(2 * gamma[1] - gamma[2], -gamma[1], rep(0, TT - 2))) # Book
   alpha_tau <- invH_2 %*% alpha_tau_tilde
   K_tau <- HH_phi / sigma2_c + HH_2 / sigma2_tau
   L_tau <- chol(K_tau) 
@@ -121,19 +119,15 @@ for (ii in 1:(nsim+nburn)) {
     count_phi <- count_phi + 1
   }
 
-
   # draw from condition for sigma^2_c #------------------------------------------------------------
   S_sigma2_c_temp <- S_sigma2_c + 0.5 * t(y - tau) %*% (HH_phi %*% (y - tau))
   sigma2_c <- 1 / rgamma(n = 1, shape = ny_sigma2_c + TT / 2, scale = 1 / as.matrix(S_sigma2_c_temp))
 
-
-  # draw from conditional for sigma^2_tau
-  del_tau <- c(tau0[1], tau[1:TT]) - c(tau0[2], tau0[1], tau[1:(TT - 1)])
+  # draw from conditional for sigma^2_tau #---------------------------------------------------------
+  del_tau <- c(gamma[2], tau[1:TT]) - c(gamma[1], gamma[2], tau[1:(TT - 1)])  ## book
   f_tau <- function(x) {
     -TT / 2 * log(x) - sum(diff(del_tau)[-TT]**2) / (2 * x)
   }
-  # sum((del_tau[2:TT]-del_tau[1:(TT-1)])**2)
-  #sigma2_tau_grid <- seq(from = 0, to = b_sigma2_tau, length.out = n_grid)
   sigma2_tau_grid <- seq(from = runif(1) / 10000, to = b_sigma2_tau - runif(1) / 1000, length.out = n_grid)
   lp_sigtau2 <- f_tau(sigma2_tau_grid)
   p_sigtau2 <- exp(lp_sigtau2 - max(lp_sigtau2))
@@ -163,6 +157,7 @@ for (ii in 1:(nsim+nburn)) {
 }
 print(Sys.time()-now)
 
+# Results #----------------------------------------------------------------------------------------
 tau_post <- colMeans(store_tau)
 phi_post <- colMeans(store_phi)
 gamma_post <- colMeans(store_gamma)

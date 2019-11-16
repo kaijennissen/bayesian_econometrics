@@ -6,24 +6,6 @@
 using namespace Rcpp;
 using namespace arma;
 
-// //[[Rcpp::export]]
-// vec rgammaC(int n, int a, int b)
-// {
-//     vec x = randg<vec>(n, distr_param(3, 2));
-//     return x;
-// }
-
-// //[[Rcpp::export]]
-// Rcpp::NumericVector zrnorm(int n)
-// {
-//     Rcpp::NumericVector x(n);
-//     for (int i = 0; i < n; i++)
-//     {
-//         x[i] = zigg.norm();
-//     }
-//     return x;
-// }
-
 // [[Rcpp::export]]
 List gibbsC(int nsim, int nburn, mat y)
 {
@@ -58,8 +40,8 @@ List gibbsC(int nsim, int nburn, mat y)
     // Initial Values
     // ----------------------------------------------------------------
     mat phi(2, 1);
-    phi(0, 0) = -1.34;
-    phi(1, 0) = 0.7;
+    phi(0, 0) = 1.34;
+    phi(1, 0) = -0.7;
     double sigma2_c = .5;
     double sigma2_tau = .001;
     mat gamma(2, 1);
@@ -89,11 +71,11 @@ List gibbsC(int nsim, int nburn, mat y)
         H_phi(j, j) = 1;
         if (j > 0)
         {
-            H_phi(j, j - 1) = phi(0);
+            H_phi(j, j - 1) = -phi(0);
         }
         if (j > 1)
         {
-            H_phi(j, j - 2) = phi(1);
+            H_phi(j, j - 2) = -phi(1);
         }
     }
     sp_mat HH_phi = H_phi.t() * H_phi;
@@ -109,7 +91,6 @@ List gibbsC(int nsim, int nburn, mat y)
     // ----------------------------------------------------------------
     // set up intermediate data structures and storage variables
     // ----------------------------------------------------------------
-
     // intermediate vars tau
     mat alpha_tau_tilde(TT, 1);
     mat alpha_tau(TT, 1);
@@ -158,9 +139,10 @@ List gibbsC(int nsim, int nburn, mat y)
         // ------------------------------------------------------------
         // draw from conditional for tau
         // ------------------------------------------------------------
-        alpha_tau_tilde = join_cols(vec{2 * gamma(1) - gamma(0), -gamma(1)}, zeros(TT - 2));
+        // gamma = (tau(0), tau(-1))'
+        alpha_tau_tilde = join_cols(vec{2 * gamma(0) - gamma(1), -gamma(0)}, zeros(TT - 2));
         alpha_tau = mat(H_2).i() * alpha_tau_tilde;
-        K_tau = HH_phi.t() / sigma2_c + HH_2 / sigma2_tau;
+        K_tau = HH_phi / sigma2_c + HH_2 / sigma2_tau;
         XX_tau = HH_phi * y / sigma2_c + HH_2 * alpha_tau / sigma2_tau;
         tau_hat = solve(mat(K_tau), XX_tau);
         tau = tau_hat + solve(chol(mat(K_tau), "upper"), eye(TT, TT)) * randn(H_2.n_cols, 1);
@@ -169,13 +151,23 @@ List gibbsC(int nsim, int nburn, mat y)
         // draw from conditional for phi
         // ------------------------------------------------------------
         c = y - tau;
-        for (unsigned int j = 1; j < TT; j++)
+        for (unsigned int j = 0; j < TT; j++)
         {
-            X_phi(j, 0) = c(j - 1, 0);
-        }
-        for (unsigned int j = 2; j < TT; j++)
-        {
-            X_phi(j, 1) = c(j - 2, 0);
+            if (j > 1)
+            {
+                X_phi(j, 0) = c(j - 1, 0);
+                X_phi(j, 1) = c(j - 2, 0);
+            }
+            else if (j == 1)
+            {
+                X_phi(j, 0) = c(j - 1, 0);
+                X_phi(j, 1) = 0;
+            }
+            else if (j == 0)
+            {
+                X_phi(j, 0) = 0;
+                X_phi(j, 1) = 0;
+            }
         }
         K_phi = invV_phi + X_phi.t() * X_phi / sigma2_c;
         XX = invV_phi * phi_0 + X_phi.t() * c / sigma2_c;
@@ -190,11 +182,11 @@ List gibbsC(int nsim, int nburn, mat y)
                 H_phi(j, j) = 1;
                 if (j > 0)
                 {
-                    H_phi(j, j - 1) = phi(0);
+                    H_phi(j, j - 1) = -phi(0);
                 }
                 if (j > 1)
                 {
-                    H_phi(j, j - 2) = phi(1);
+                    H_phi(j, j - 2) = -phi(1);
                 }
             }
             HH_phi = H_phi.t() * H_phi;
@@ -210,6 +202,7 @@ List gibbsC(int nsim, int nburn, mat y)
         // ------------------------------------------------------------
         // draw from conditional for sigma^2_tau
         // ------------------------------------------------------------
+        // gamma = (tau(0), tau(-1))'
         for (int j = 0; j < TT + 1; j++)
         {
             if (j > 1)
@@ -218,11 +211,11 @@ List gibbsC(int nsim, int nburn, mat y)
             }
             else if (j == 0)
             {
-                del_tau(j, 0) = gamma(0) - gamma(1);
+                del_tau(j, 0) = gamma(1) - gamma(0);
             }
             else if (j == 1)
             {
-                del_tau(j, 0) = tau(0) - gamma(0);
+                del_tau(j, 0) = tau(0) - gamma(1);
             }
         }
         sigma2_tau_grid = linspace(randu<double>() / 100, b_sigma2_tau - randu<double>() / 100, n_grid);

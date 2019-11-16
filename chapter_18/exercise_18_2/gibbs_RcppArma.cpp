@@ -5,18 +5,24 @@
 
 using namespace Rcpp;
 using namespace arma;
-static Ziggurat::Ziggurat::Ziggurat zigg;
 
-//[[Rcpp::export]]
-Rcpp::NumericVector zrnorm(int n)
-{
-    Rcpp::NumericVector x(n);
-    for (int i = 0; i < n; i++)
-    {
-        x[i] = zigg.norm();
-    }
-    return x;
-}
+// //[[Rcpp::export]]
+// vec rgammaC(int n, int a, int b)
+// {
+//     vec x = randg<vec>(n, distr_param(3, 2));
+//     return x;
+// }
+
+// //[[Rcpp::export]]
+// Rcpp::NumericVector zrnorm(int n)
+// {
+//     Rcpp::NumericVector x(n);
+//     for (int i = 0; i < n; i++)
+//     {
+//         x[i] = zigg.norm();
+//     }
+//     return x;
+// }
 
 // [[Rcpp::export]]
 List gibbsC(int nsim, int nburn, mat y)
@@ -56,8 +62,8 @@ List gibbsC(int nsim, int nburn, mat y)
     phi(1, 0) = 0.7;
     double sigma2_c = .5;
     double sigma2_tau = .001;
-    mat tau_0(2, 1);
-    tau_0.fill(y(0));
+    mat gamma(2, 1);
+    gamma.fill(y(0));
 
     // H_2
     sp_mat H_2(TT, TT);
@@ -105,7 +111,6 @@ List gibbsC(int nsim, int nburn, mat y)
     // ----------------------------------------------------------------
 
     // intermediate vars tau
-    vec S_sigma2_c_temp(1, 1, fill::zeros);
     mat alpha_tau_tilde(TT, 1);
     mat alpha_tau(TT, 1);
     sp_mat K_tau(TT, TT);
@@ -130,17 +135,20 @@ List gibbsC(int nsim, int nburn, mat y)
     mat cdf_sigtau2(size(p_sigtau2));
     uvec idx;
 
+    // sigma2_c
+    double ny_hat_sigma2_c = ny_sigma2_c + TT / 2;
+    double S_hat_sigma2_c = 99.0;
+
     // gamma
     mat K_gamma(size(invV_gamma));
     mat XX_temp_gamma(size(K_gamma));
     mat gamma_hat(size(gamma_0));
-    mat gamma(size(gamma_hat));
 
-    // Store
+    // // Store
     mat tau_store(y.n_rows, nsim, fill::zeros);
     mat phi_store(2, nsim, fill::zeros);
-    mat sigma2_c_store(1, nsim, fill::zeros);
-    mat sigma2_tau_store(1, nsim, fill::zeros);
+    vec sigma2_c_store(nsim, fill::zeros);
+    vec sigma2_tau_store(nsim, fill::zeros);
     mat gamma_store(2, nsim, fill::zeros);
     vec gamma_draw(1, 1, fill::zeros);
 
@@ -150,18 +158,17 @@ List gibbsC(int nsim, int nburn, mat y)
         // ------------------------------------------------------------
         // draw from conditional for tau
         // ------------------------------------------------------------
-        alpha_tau_tilde = join_cols(vec{2 * tau_0(1) - tau_0(0), -tau_0(1)}, zeros(TT - 2));
+        alpha_tau_tilde = join_cols(vec{2 * gamma(1) - gamma(0), -gamma(1)}, zeros(TT - 2));
         alpha_tau = mat(H_2).i() * alpha_tau_tilde;
         K_tau = HH_phi.t() / sigma2_c + HH_2 / sigma2_tau;
         XX_tau = HH_phi * y / sigma2_c + HH_2 * alpha_tau / sigma2_tau;
         tau_hat = solve(mat(K_tau), XX_tau);
-        tau = tau_hat + inv(chol(mat(K_tau), "upper")) * randn(H_2.n_cols, 1);
+        tau = tau_hat + solve(chol(mat(K_tau), "upper"), eye(TT, TT)) * randn(H_2.n_cols, 1);
 
         // ------------------------------------------------------------
         // draw from conditional for phi
         // ------------------------------------------------------------
         c = y - tau;
-
         for (unsigned int j = 1; j < TT; j++)
         {
             X_phi(j, 0) = c(j - 1, 0);
@@ -196,8 +203,9 @@ List gibbsC(int nsim, int nburn, mat y)
         // ------------------------------------------------------------
         // draw from condition for sigma^2_c
         // ------------------------------------------------------------
-        S_sigma2_c_temp = S_sigma2_c + 0.5 * (y - tau).t() * (H_phi * (y - tau));
-        sigma2_c = 1 / arma::randg<double>(distr_param(ny_sigma2_c + TT / 2, 1 / as_scalar(S_sigma2_c_temp)));
+        S_hat_sigma2_c = S_sigma2_c + 0.5 * as_scalar((y - tau).t() * H_phi * (y - tau));
+        S_hat_sigma2_c = 1 / S_hat_sigma2_c;
+        sigma2_c = 1 / arma::randg<double>(distr_param(ny_hat_sigma2_c, S_hat_sigma2_c));
 
         // ------------------------------------------------------------
         // draw from conditional for sigma^2_tau
@@ -210,14 +218,14 @@ List gibbsC(int nsim, int nburn, mat y)
             }
             else if (j == 0)
             {
-                del_tau(j, 0) = tau_0(1) - tau_0(0);
+                del_tau(j, 0) = gamma(0) - gamma(1);
             }
             else if (j == 1)
             {
-                del_tau(j, 0) = tau(0) - tau_0(1);
+                del_tau(j, 0) = tau(0) - gamma(0);
             }
         }
-        sigma2_tau_grid = linspace(as_scalar(randu(1)) / 100, b_sigma2_tau - as_scalar(randu(1)) / 100, n_grid);
+        sigma2_tau_grid = linspace(randu<double>() / 100, b_sigma2_tau - randu<double>() / 100, n_grid);
         for (int j = 0; j < n_grid; j++)
         {
             lp_sigtau2(j, 0) = as_scalar(-log(sigma2_tau_grid(j)) * TT / 2 - sum(square(diff(del_tau))) / (2 * sigma2_tau_grid(j)));
@@ -230,10 +238,10 @@ List gibbsC(int nsim, int nburn, mat y)
         // ------------------------------------------------------------
         // draw from conditional for gamma
         // ------------------------------------------------------------
-        mat K_gamma = invV_gamma + X_gamma.t() * (HH_2 * X_gamma) / as_scalar(sigma2_tau);
-        mat XX_temp_gamma = invV_gamma * gamma_0 + X_gamma.t() * (HH_2 * tau) / as_scalar(sigma2_tau);
-        mat gamma_hat = solve(K_gamma, XX_temp_gamma);
-        mat gamma = gamma_hat + inv(chol(K_gamma)) * randn(2, 1);
+        K_gamma = invV_gamma + X_gamma.t() * (HH_2 * X_gamma) / sigma2_tau;
+        XX_temp_gamma = invV_gamma * gamma_0 + X_gamma.t() * (HH_2 * tau) / sigma2_tau;
+        gamma_hat = solve(K_gamma, XX_temp_gamma);
+        gamma = gamma_hat + inv(chol(K_gamma)) * randn(2, 1);
 
         // ------------------------------------------------------------
         // Store draws after burn-in period
@@ -242,17 +250,17 @@ List gibbsC(int nsim, int nburn, mat y)
         {
             tau_store.col(i - nburn) = tau;
             phi_store.col(i - nburn) = phi;
-            sigma2_c_store.col(i - nburn) = sigma2_c;
-            sigma2_tau_store.col(i - nburn) = sigma2_tau;
             gamma_store.col(i - nburn) = gamma;
+            sigma2_c_store(i - nburn) = sigma2_c;
+            sigma2_tau_store(i - nburn) = sigma2_tau;
         }
     }
 
     to_return(0) = tau_store;
     to_return(1) = phi_store;
-    to_return(2) = sigma2_c_store;
-    to_return(3) = sigma2_c_store;
-    to_return(4) = gamma_store;
+    to_return(2) = gamma_store;
+    to_return(3) = sigma2_tau_store;
+    to_return(4) = sigma2_c_store;
 
     return to_return;
 }

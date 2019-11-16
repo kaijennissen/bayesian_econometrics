@@ -8,6 +8,7 @@
 # run time: 150 sec
 
 library(Matrix)
+library(dplyr)
 library(ggplot2)
 
 rm(list = ls())
@@ -207,8 +208,7 @@ sigma2_c_hat <- colMeans(store_sigma2_c)
 cc <- ts(y - tau_hat, start = c(1949, 1), frequency = 4)
 plot(cc)
 
-library(dplyr)
-library(ggplot2)
+
 timetk::tk_tbl(data = cc, rename_index = "time") %>% 
   rename(c = 'Series 1') %>% 
   ggplot(aes(x=time, y = c))+

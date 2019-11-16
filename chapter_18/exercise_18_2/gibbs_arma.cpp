@@ -1,17 +1,73 @@
-#include <RcppArmadillo.h>
-#include <Rcpp.h>
-#include <Ziggurat.h>
-// [[Rcpp::depends(RcppArmadillo, Rcpp, RcppZiggurat)]]
+#include <iostream>
+#include <armadillo>
+#include <sstream>
+#include <string>
+#include <fstream>
+#include <stdio.h>
 
-using namespace Rcpp;
 using namespace arma;
+using namespace std;
 
-// [[Rcpp::export]]
-List gibbsC(int nsim, int nburn, mat y)
+int main()
 {
 
-    List to_return(5);
+    string fileName = "usgdp.csv";
+    int dPrec = 20;
+
+    ifstream inputData;
+    inputData.open(fileName);
+    cout.precision(dPrec);
+    mat outputMatrix;
+
+    if (!inputData)
+        return -1;
+    string fileline, filecell;
+
+    unsigned int prevNoOfCols = 0, noOfRows = 0, noOfCols = 0;
+
+    while (getline(inputData, fileline))
+    {
+        noOfCols = 0;
+        stringstream linestream(fileline);
+        while (getline(linestream, filecell, ','))
+        {
+            try
+            {
+                stod(filecell);
+            }
+            catch (...)
+            {
+                return -1;
+            }
+            noOfCols++;
+        }
+        if (noOfRows++ == 0)
+            prevNoOfCols = noOfCols;
+        if (prevNoOfCols != noOfCols)
+            return -1;
+    }
+    inputData.close();
+    outputMatrix.resize(noOfRows, noOfCols);
+
+    inputData.open(fileName);
+    noOfRows = 0;
+    while (getline(inputData, fileline))
+    {
+        noOfCols = 0;
+        stringstream linestream(fileline);
+        while (getline(linestream, filecell, ','))
+        {
+            outputMatrix(noOfRows, noOfCols++) = stod(filecell);
+        }
+        noOfRows++;
+    }
+
+    mat y = outputMatrix;
+    y = log(y) * 100;
+
     int TT = y.n_rows;
+    int nsim = 10000;
+    int nburn = 1000;
 
     // ----------------------------------------------------------------
     // Priors
@@ -249,11 +305,10 @@ List gibbsC(int nsim, int nburn, mat y)
         }
     }
 
-    to_return(0) = tau_store;
-    to_return(1) = phi_store;
-    to_return(2) = gamma_store;
-    to_return(3) = sigma2_tau_store;
-    to_return(4) = sigma2_c_store;
+    cout << "phi: " << mean(phi_store, 1) << endl;
+    cout << "gamma: " << mean(gamma_store, 1) << endl;
+    cout << "sigma2_tau: " << mean(sigma2_tau_store) << endl;
+    cout << "sigma2_c: " << mean(sigma2_c_store) << endl;
 
-    return to_return;
+    return 0;
 }

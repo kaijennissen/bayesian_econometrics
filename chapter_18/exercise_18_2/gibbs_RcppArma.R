@@ -5,7 +5,13 @@
 # Cambridge: Cambridge University Press.
 #--------------------------------------------------------------------------------------------------
 
+# run time: 96 sec
+
 library(Rcpp)
+library(Matrix)
+library(dplyr)
+library(ggplot2)
+
 rm(list = ls())
 
 nsim <- 10000
@@ -33,15 +39,15 @@ phi_hat <- rowMeans(return_list[[2]])
 gamma_hat <- rowMeans(return_list[[3]])
 sigma2_tau_hat <- mean(return_list[[4]])
 sigma2_c_hat <- mean(return_list[[5]])
+theta_hat <- matrix(c(c(phi_hat),sigma2_c_hat, sigma2_tau_hat, c(gamma_hat) ))
 
 cc <- ts(y - tau_hat, start = c(1949, 1), frequency = 4)
 
-plot.ts(cc)
-
-library(dplyr)
-library(ggplot2)
 timetk::tk_tbl(data = cc, rename_index = "time") %>% 
     rename(c = 'Series 1') %>% 
     ggplot(aes(x=time, y = c))+
     geom_line()
+
+print(theta_hat)
+
 

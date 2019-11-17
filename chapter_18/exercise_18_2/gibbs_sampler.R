@@ -5,7 +5,7 @@
 # Cambridge: Cambridge University Press.
 #--------------------------------------------------------------------------------------------------
 
-# run time: 150 sec
+# run time: 155 sec
 
 library(Matrix)
 library(dplyr)
@@ -38,7 +38,7 @@ phi_0 <- matrix(c(1.3, -0.7))
 V_phi <- diag(2)
 invV_phi <- solve(V_phi)
 
-# gamma
+# gamma = (tau(0), tau(-1))'
 gamma_0 <- matrix(c(750, 750))
 V_gamma <- 100 * diag(2)
 invV_gamma <- solve(V_gamma)
@@ -53,10 +53,15 @@ S_sigma2_c <- 2
 
 # initial values #---------------------------------------------------------------------------------
 
+f_tau <- function(x, TT, del_tau) {
+  -TT / 2 * log(x) - sum(diff(del_tau)[-TT] ** 2) / (2 * x)
+}
+
+
 phi <- matrix(c(1.34, -0.7))
 sigma2_c <- .5
 sigma2_tau <- .001
-gamma <- matrix(c(y[1], y[1]))  # !! gamma = (tau(01), tau(-1))'
+gamma <- matrix(c(y[1], y[1]))  # !! gamma = (tau(0), tau(-1))'
 
 # H_2
 diags_h2 <- list(rep(1, TT), rep(-2, TT - 1), rep(1, TT - 2))
@@ -93,18 +98,13 @@ n_grid <- 500
 count_phi <- 0
 
 step_size <- total_runs / 100
-pb <- progress_bar$new(
-  format = "[:bar] :percent in :elapsed",
-  total = nsim + nburn,
-  clear = FALSE,
-  width = 60
-)
+
 
 for (ii in 1:total_runs) {
   # draw from conditional for tau #----------------------------------------------------------------
-  # gamma = (tau(-1), tau(0))'
+  # gamma = (tau(0), tau(-1))'
   alpha_tau_tilde <-
-    matrix(c(2 * gamma[1] - gamma[2], -gamma[1], rep(0, TT - 2))) # Book
+    matrix(c(2 * gamma[1] - gamma[2], -gamma[1], rep(0, TT - 2))) 
   alpha_tau <- invH_2 %*% alpha_tau_tilde
   K_tau <- HH_phi / sigma2_c + HH_2 / sigma2_tau
   L_tau <- chol(K_tau)
@@ -128,7 +128,8 @@ for (ii in 1:total_runs) {
   phic <- phi_hat + solve(L_phi) %*% Z_phi
   # stationarity region for AR(2)
   # 1) phi_1 + phi_2 < 1
-  # 2)
+  # 2) phi_2 - phi_1 < 1
+  # 3) phi_2 > -1
   if (sum(phic) < .99 &&
       phic[2] - phic[1] < .99 && phic[2] > -.99) {
     phi <- phic
@@ -151,29 +152,28 @@ for (ii in 1:total_runs) {
     1 / rgamma(
       n = 1,
       shape = ny_sigma2_c + TT / 2,
-      scale = 1 / as.matrix(S_sigma2_c_temp)
+      scale = 1 / S_sigma2_c_temp@x
     )
   
   # draw from conditional for sigma^2_tau #---------------------------------------------------------
-  # gamma = (tau(-1), tau(0))'
+  # gamma = (tau(0), tau(-1))'
   del_tau <-
-    c(gamma[2], tau[1:TT]) - c(gamma[1], gamma[2], tau[1:(TT - 1)])
-  f_tau <- function(x) {
-    -TT / 2 * log(x) - sum(diff(del_tau)[-TT] ** 2) / (2 * x)
-  }
+    c(gamma[1], tau[1:TT]) - c(gamma[2], gamma[1], tau[1:(TT - 1)])
+  # f_tau <- function(x) {
+  #   -TT / 2 * log(x) - sum(diff(del_tau)[-TT] ** 2) / (2 * x)
+  # }
   sigma2_tau_grid <-
     seq(
-      from = runif(1) / 10000,
+      from = runif(1) / 1000,
       to = b_sigma2_tau - runif(1) / 1000,
       length.out = n_grid
     )
-  lp_sigtau2 <- f_tau(sigma2_tau_grid)
+  lp_sigtau2 <- f_tau(x = sigma2_tau_grid, TT = TT, del_tau = del_tau)
   p_sigtau2 <- exp(lp_sigtau2 - max(lp_sigtau2))
   p_sigtau2 <- p_sigtau2 / sum(p_sigtau2)
   cdf_sigtau2 <- cumsum(p_sigtau2)
   sigma2_tau <-
     sigma2_tau_grid[which(runif(1) < cdf_sigtau2, TRUE)[1]]
-  
   
   # draw from conditional for gamma #--------------------------------------------------------------
   K_gamma <-
@@ -204,6 +204,8 @@ phi_hat <- colMeans(store_phi)
 gamma_hat <- colMeans(store_gamma)
 sigma2_tau_hat <- colMeans(store_sigma2_tau)
 sigma2_c_hat <- colMeans(store_sigma2_c)
+
+theta_hat <- matrix(c(c(phi_hat),sigma2_c_hat, sigma2_tau_hat, c(gamma_hat) ))
 
 cc <- ts(y - tau_hat, start = c(1949, 1), frequency = 4)
 plot(cc)

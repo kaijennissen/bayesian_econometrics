@@ -1,7 +1,6 @@
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
-#include <Ziggurat.h>
-// [[Rcpp::depends(RcppArmadillo, Rcpp, RcppZiggurat)]]
+// [[Rcpp::depends(RcppArmadillo, Rcpp)]]
 
 using namespace Rcpp;
 using namespace arma;
@@ -48,36 +47,72 @@ List gibbsC(int nsim, int nburn, mat y)
     gamma.fill(y(0));
 
     // H_2
-    sp_mat H_2(TT, TT);
+    umat H2_location(2, 3 * (TT - 1));
+    vec H2_values(3 * (TT - 1));
+    int i = 0;
     for (int j = 0; j < TT; j++)
     {
-        H_2(j, j) = 1;
-        if (j > 0)
+        H2_location(0, i) = j;
+        H2_location(1, i) = j;
+        H2_values(i) = 1;
+        i++;
+        if (j < TT - 1)
         {
-            H_2(j, j - 1) = -2;
+            H2_location(0, i) = j + 1;
+            H2_location(1, i) = j;
+            H2_values(i) = -2;
+            i++;
         }
-        if (j > 1)
+        if (j < TT - 2)
         {
-            H_2(j, j - 2) = 1;
+            H2_location(0, i) = j + 2;
+            H2_location(1, i) = j;
+            H2_values(i) = 1;
+            i++;
         }
     }
+    sp_mat H_2 = sp_mat(H2_location, H2_values);
     mat invH_2 = inv(mat(H_2));
     sp_mat HH_2 = H_2.t() * H_2;
 
     // H_phi
-    sp_mat H_phi(TT, TT);
+    uvec idx1(TT);
+    uvec idx2(TT - 1);
+    vec vals_phi_2(TT - 1);
+    uvec idx3(TT - 2);
+    vec vals_phi_3(TT - 2);
+    umat Hphi_location(2, 3 * (TT - 1));
+    vec Hphi_values(3 * (TT - 1));
+    i = 0;
     for (int j = 0; j < TT; j++)
     {
-        H_phi(j, j) = 1;
-        if (j > 0)
+        Hphi_location(0, i) = j;
+        Hphi_location(1, i) = j;
+        Hphi_values(i) = 1;
+        idx1(j) = i;
+        i++;
+        if (j < TT - 1)
         {
-            H_phi(j, j - 1) = -phi(0);
+            Hphi_location(0, i) = j + 1;
+            Hphi_location(1, i) = j;
+            Hphi_values(i) = -phi(0);
+            idx2(j) = i;
+            i++;
         }
-        if (j > 1)
+        if (j < TT - 2)
         {
-            H_phi(j, j - 2) = -phi(1);
+            Hphi_location(0, i) = j + 2;
+            Hphi_location(1, i) = j;
+            Hphi_values(i) = -phi(1);
+            idx3(j) = i;
+            i++;
         }
     }
+    vals_phi_2.fill(-phi(0));
+    vals_phi_3.fill(-phi(1));
+    Hphi_values.elem(idx2) = vals_phi_2;
+    Hphi_values.elem(idx3) = vals_phi_3;
+    sp_mat H_phi = sp_mat(Hphi_location, Hphi_values);
     sp_mat HH_phi = H_phi.t() * H_phi;
 
     // X_gamma
@@ -92,8 +127,8 @@ List gibbsC(int nsim, int nburn, mat y)
     // set up intermediate data structures and storage variables
     // ----------------------------------------------------------------
     // intermediate vars tau
-    mat alpha_tau_tilde(TT, 1);
-    mat alpha_tau(TT, 1);
+    vec alpha_tau_tilde = zeros(TT);
+    vec alpha_tau(TT);
     sp_mat K_tau(TT, TT);
     mat XX_tau(TT, 1);
     mat tau_hat(TT, 1);
@@ -109,11 +144,11 @@ List gibbsC(int nsim, int nburn, mat y)
 
     // sigma2_tau
     int n_grid = 500;
-    mat del_tau(TT + 1, 1);
-    mat sigma2_tau_grid(n_grid, 1);
-    mat lp_sigtau2(size(sigma2_tau_grid));
-    mat p_sigtau2(size(lp_sigtau2));
-    mat cdf_sigtau2(size(p_sigtau2));
+    vec del_tau(TT + 1);
+    vec sigma2_tau_grid(n_grid, 1);
+    vec lp_sigtau2(size(sigma2_tau_grid));
+    vec p_sigtau2(size(lp_sigtau2));
+    vec cdf_sigtau2(size(p_sigtau2));
     uvec idx;
 
     // sigma2_c
@@ -140,8 +175,9 @@ List gibbsC(int nsim, int nburn, mat y)
         // draw from conditional for tau
         // ------------------------------------------------------------
         // gamma = (tau(0), tau(-1))'
-        alpha_tau_tilde = join_cols(vec{2 * gamma(0) - gamma(1), -gamma(0)}, zeros(TT - 2));
-        alpha_tau = mat(H_2).i() * alpha_tau_tilde;
+        alpha_tau_tilde(0) = 2 * gamma(0) - gamma(1);
+        alpha_tau_tilde(1) = -gamma(0);
+        alpha_tau = invH_2 * alpha_tau_tilde;
         K_tau = HH_phi / sigma2_c + HH_2 / sigma2_tau;
         XX_tau = HH_phi * y / sigma2_c + HH_2 * alpha_tau / sigma2_tau;
         tau_hat = solve(mat(K_tau), XX_tau);
@@ -177,18 +213,12 @@ List gibbsC(int nsim, int nburn, mat y)
         {
             phi = phic;
             // calculate H_phi in every iteration
-            for (int j = 0; j < TT; j++)
-            {
-                H_phi(j, j) = 1;
-                if (j > 0)
-                {
-                    H_phi(j, j - 1) = -phi(0);
-                }
-                if (j > 1)
-                {
-                    H_phi(j, j - 2) = -phi(1);
-                }
-            }
+            vals_phi_2.fill(-phi(0));
+            vals_phi_3.fill(-phi(1));
+            Hphi_values.elem(idx2) = vals_phi_2;
+            Hphi_values.elem(idx3) = vals_phi_3;
+
+            H_phi = sp_mat(Hphi_location, Hphi_values);
             HH_phi = H_phi.t() * H_phi;
         }
 
@@ -207,23 +237,20 @@ List gibbsC(int nsim, int nburn, mat y)
         {
             if (j > 1)
             {
-                del_tau(j, 0) = tau(j - 1) - tau(j - 2);
+                del_tau(j) = tau(j - 1) - tau(j - 2);
             }
             else if (j == 0)
             {
-                del_tau(j, 0) = gamma(1) - gamma(0);
+                del_tau(j) = gamma(0) - gamma(1);
             }
             else if (j == 1)
             {
-                del_tau(j, 0) = tau(0) - gamma(1);
+                del_tau(j) = tau(j - 1) - gamma(0);
             }
         }
-        sigma2_tau_grid = linspace(randu<double>() / 100, b_sigma2_tau - randu<double>() / 100, n_grid);
-        for (int j = 0; j < n_grid; j++)
-        {
-            lp_sigtau2(j, 0) = as_scalar(-log(sigma2_tau_grid(j)) * TT / 2 - sum(square(diff(del_tau))) / (2 * sigma2_tau_grid(j)));
-        }
-        p_sigtau2 = arma::exp(lp_sigtau2 - as_scalar(max(lp_sigtau2))) / as_scalar(sum(arma::exp(lp_sigtau2 - as_scalar(max(lp_sigtau2)))));
+        sigma2_tau_grid = linspace(randu<double>() / 1000, b_sigma2_tau - randu<double>() / 1000, n_grid);
+        lp_sigtau2 = -log(sigma2_tau_grid) * (TT / 2) - sum(square(diff(del_tau))) / (2 * sigma2_tau_grid);
+        p_sigtau2 = exp(lp_sigtau2 - max(lp_sigtau2)) / sum(exp(lp_sigtau2 - max(lp_sigtau2)));
         cdf_sigtau2 = cumsum(p_sigtau2);
         idx = find(randu<double>() < cdf_sigtau2, 1);
         sigma2_tau = as_scalar(sigma2_tau_grid(idx));

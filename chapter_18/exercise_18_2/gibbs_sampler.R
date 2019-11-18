@@ -97,14 +97,14 @@ store_phi <- matrix(0, nrow = nsim, ncol = 2)
 n_grid <- 500
 count_phi <- 0
 
-step_size <- total_runs / 100
+alpha_tau_tilde <- matrix(0, nrow = TT)
 
 
 for (ii in 1:total_runs) {
   # draw from conditional for tau #----------------------------------------------------------------
   # gamma = (tau(0), tau(-1))'
-  alpha_tau_tilde <-
-    matrix(c(2 * gamma[1] - gamma[2], -gamma[1], rep(0, TT - 2))) 
+  alpha_tau_tilde[1, 1] <- 2 * gamma[1] - gamma[2]
+  alpha_tau_tilde[2, 1] <- -gamma[1]
   alpha_tau <- invH_2 %*% alpha_tau_tilde
   K_tau <- HH_phi / sigma2_c + HH_2 / sigma2_tau
   L_tau <- chol(K_tau)
@@ -159,16 +159,14 @@ for (ii in 1:total_runs) {
   # gamma = (tau(0), tau(-1))'
   del_tau <-
     c(gamma[1], tau[1:TT]) - c(gamma[2], gamma[1], tau[1:(TT - 1)])
-  # f_tau <- function(x) {
-  #   -TT / 2 * log(x) - sum(diff(del_tau)[-TT] ** 2) / (2 * x)
-  # }
   sigma2_tau_grid <-
     seq(
       from = runif(1) / 1000,
       to = b_sigma2_tau - runif(1) / 1000,
       length.out = n_grid
     )
-  lp_sigtau2 <- f_tau(x = sigma2_tau_grid, TT = TT, del_tau = del_tau)
+  lp_sigtau2 <-
+    f_tau(x = sigma2_tau_grid, TT = TT, del_tau = del_tau)
   p_sigtau2 <- exp(lp_sigtau2 - max(lp_sigtau2))
   p_sigtau2 <- p_sigtau2 / sum(p_sigtau2)
   cdf_sigtau2 <- cumsum(p_sigtau2)
@@ -189,9 +187,9 @@ for (ii in 1:total_runs) {
   # store #----------------------------------------------------------------------------------------
   if (ii > nburn) {
     nn <- ii - nburn
-    store_tau[nn,] <- tau@x
-    store_phi[nn,] <- phi@x
-    store_gamma[nn,] <- gamma@x
+    store_tau[nn, ] <- tau@x
+    store_phi[nn, ] <- phi@x
+    store_gamma[nn, ] <- gamma@x
     store_sigma2_tau[nn] <- sigma2_tau
     store_sigma2_c[nn] <- sigma2_c
   }
@@ -205,15 +203,16 @@ gamma_hat <- colMeans(store_gamma)
 sigma2_tau_hat <- colMeans(store_sigma2_tau)
 sigma2_c_hat <- colMeans(store_sigma2_c)
 
-theta_hat <- matrix(c(c(phi_hat),sigma2_c_hat, sigma2_tau_hat, c(gamma_hat) ))
+theta_hat <-
+  matrix(c(c(phi_hat), sigma2_c_hat, sigma2_tau_hat, c(gamma_hat)))
 
 cc <- ts(y - tau_hat, start = c(1949, 1), frequency = 4)
 plot(cc)
 
 
-timetk::tk_tbl(data = cc, rename_index = "time") %>% 
-  rename(c = 'Series 1') %>% 
-  ggplot(aes(x=time, y = c))+
+timetk::tk_tbl(data = cc, rename_index = "time") %>%
+  rename(c = 'Series 1') %>%
+  ggplot(aes(x = time, y = c)) +
   geom_line()
 
-
+system("say finished")

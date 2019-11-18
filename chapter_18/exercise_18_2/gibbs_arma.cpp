@@ -265,7 +265,7 @@ int main()
         K_phi = invV_phi + X_phi.t() * X_phi / sigma2_c;
         XX = invV_phi * phi_0 + X_phi.t() * c / sigma2_c;
         phi_hat = solve(K_phi, XX);
-        phic = phi_hat + inv(chol(K_phi)) * randn(2, 1);
+        phic = phi_hat + inv(chol(K_phi, "upper")) * randn(2, 1);
         if (phic(0) + phic(1) < .99 and phic(1) - phic(0) < .99 and phic(1) > -.99)
         {
             phi = phic;
@@ -282,9 +282,9 @@ int main()
         // ------------------------------------------------------------
         // draw from condition for sigma^2_c
         // ------------------------------------------------------------
-        S_hat_sigma2_c = S_sigma2_c + 0.5 * as_scalar((y - tau).t() * H_phi * (y - tau));
-        S_hat_sigma2_c = 1 / S_hat_sigma2_c;
-        sigma2_c = 1 / arma::randg<double>(distr_param(ny_hat_sigma2_c, S_hat_sigma2_c));
+        S_hat_sigma2_c = S_sigma2_c + 0.5 * as_scalar((y - tau).t() * HH_phi * (y - tau));
+        //S_hat_sigma2_c = 1 / S_hat_sigma2_c;
+        sigma2_c = 1 / arma::randg<double>(distr_param(ny_hat_sigma2_c, 1/S_hat_sigma2_c));
 
         // ------------------------------------------------------------
         // draw from conditional for sigma^2_tau
@@ -318,7 +318,7 @@ int main()
         K_gamma = invV_gamma + X_gamma.t() * (HH_2 * X_gamma) / sigma2_tau;
         XX_temp_gamma = invV_gamma * gamma_0 + X_gamma.t() * (HH_2 * tau) / sigma2_tau;
         gamma_hat = solve(K_gamma, XX_temp_gamma);
-        gamma = gamma_hat + inv(chol(K_gamma)) * randn(2, 1);
+        gamma = gamma_hat + inv(chol(K_gamma, "upper")) * randn(2, 1);
 
         // ------------------------------------------------------------
         // Store draws after burn-in period

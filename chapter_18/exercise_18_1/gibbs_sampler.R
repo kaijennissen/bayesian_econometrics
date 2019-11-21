@@ -54,38 +54,38 @@ tau0 <- 5
 bar_steps <- (nsim + nburn) / 100
 for (ii in 1:(nsim + nburn)) {
 
-  # draw from conditional for tau
-  K_tau <- HH / omega2 + diag(TT) / sigma2
-  B <- t(chol(K_tau))
-  XX <- (HH * tau0) %*% matrix(1, nrow = TT) / c(omega2) + y / sigma2
-  mu_tau <- solve(K_tau, XX)
-  Z <- matrix(rnorm(n = TT, mean = 0, sd = 1))
-  tau <- mu_tau + solve(t(B)) %*% Z
+    # draw from conditional for tau
+    K_tau <- HH / omega2 + diag(TT) / sigma2
+    B <- t(chol(K_tau))
+    XX <- (HH * tau0) %*% matrix(1, nrow = TT) / c(omega2) + y / sigma2
+    mu_tau <- solve(K_tau, XX)
+    Z <- matrix(rnorm(n = TT, mean = 0, sd = 1))
+    tau <- mu_tau + solve(t(B)) %*% Z
 
-  # draw from conditional for sigma^2
-  S_sigma_temp <- S_sigma0 + 0.5 * t(y - tau) %*% (y - tau)
-  sigma2 <- 1 / rgamma(n = 1, shape = (ny_sigma0 + TT / 2), scale = 1 / S_sigma_temp)
+    # draw from conditional for sigma^2
+    S_sigma_temp <- S_sigma0 + 0.5 * t(y - tau) %*% (y - tau)
+    sigma2 <- 1 / rgamma(n = 1, shape = (ny_sigma0 + TT / 2), scale = 1 / S_sigma_temp)
 
-  # draw from condition for omega^2
-  S_omega_temp <- S_omega0 + 0.5 * t(tau - tau0) %*% HH %*% (tau - tau0)
-  omega2 <- 1 / rgamma(n = 1, shape = ny_omega0 + TT / 2, scale = 1 / S_omega_temp)
+    # draw from condition for omega^2
+    S_omega_temp <- S_omega0 + 0.5 * t(tau - tau0) %*% HH %*% (tau - tau0)
+    omega2 <- 1 / rgamma(n = 1, shape = ny_omega0 + TT / 2, scale = 1 / S_omega_temp)
 
-  # draw from conditional for tau_0
-  K_tau0 <- 1 / b0 + 1 / omega2
-  invK_tau0 <- 1 / K_tau0
-  tau0_hat <- invK_tau0 * (a0 / b0 + tau[1] / omega2)
-  tau0 <- rnorm(n = 1, mean = tau0_hat, sd = sqrt(invK_tau0))
+    # draw from conditional for tau_0
+    K_tau0 <- 1 / b0 + 1 / omega2
+    invK_tau0 <- 1 / K_tau0
+    tau0_hat <- invK_tau0 * (a0 / b0 + tau[1] / omega2)
+    tau0 <- rnorm(n = 1, mean = tau0_hat, sd = sqrt(invK_tau0))
 
-  progress(ii / bar_steps)
-  if (ii == (nsim + nburn)) cat(": Done")
+    progress(ii / bar_steps)
+    if (ii == (nsim + nburn)) cat(": Done")
 
-  if (ii > nburn) {
-    nn <- ii - nburn
-    store_tau[nn, ] <- tau[, , drop = T]
-    store_tau0[nn, 1] <- tau0
-    store_sigma[nn, 1] <- sigma2
-    store_omega[nn, 1] <- omega2
-  }
+    if (ii > nburn) {
+        nn <- ii - nburn
+        store_tau[nn, ] <- tau[, , drop = T]
+        store_tau0[nn, 1] <- tau0
+        store_sigma[nn, 1] <- sigma2
+        store_omega[nn, 1] <- omega2
+    }
 }
 
 tau_post <- colMeans(store_tau)
@@ -104,6 +104,6 @@ tbl <- mutate(tbl, t = sort(xx[-1]))
 
 
 tbl %>%
-  gather("series", "value", -t) %>%
-  ggplot(aes(x = t, y = value, lty = series, col = series)) +
-  geom_line()
+    gather("series", "value", -t) %>%
+    ggplot(aes(x = t, y = value, lty = series, col = series)) +
+    geom_line()

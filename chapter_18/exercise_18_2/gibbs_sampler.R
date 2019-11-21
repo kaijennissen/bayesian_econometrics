@@ -44,7 +44,7 @@ V_gamma <- 100 * diag(2)
 invV_gamma <- solve(V_gamma)
 
 # sigma2_tau
-b_sigma2_tau <- 0.01
+b_sigma2_tau <- 0.001
 
 # sigma2_c
 ny_sigma2_c <- 3
@@ -88,11 +88,11 @@ HH_phi <- t(H_phi) %*% H_phi
 X_gamma <- cbind(c(2:(TT + 1)), -c(1:TT))
 
 
-store_tau <- matrix(0, nrow = nsim, ncol = TT)
-store_gamma <- matrix(0, nrow = nsim, ncol = 2)
-store_sigma2_tau <- matrix(0, nrow = nsim, ncol = 1)
-store_sigma2_c <- matrix(0, nrow = nsim, ncol = 1)
-store_phi <- matrix(0, nrow = nsim, ncol = 2)
+store_tau <- matrix(0, nrow = TT, ncol = nsim)
+store_theta <- matrix(0, nrow = 6, ncol = nsim)
+# store_sigma2_tau <- matrix(0, nrow = 1, ncol = nsim)
+# store_sigma2_c <- matrix(0, nrow = nsim, ncol =nsim1)
+# store_phi <- matrix(0, nrow = nsim, ncol = 2)
 
 n_grid <- 500
 count_phi <- 0
@@ -114,6 +114,7 @@ for (ii in 1:total_runs) {
   Z_tau <- matrix(rnorm(n = TT, mean = 0, sd = 1))
   tau <-
     tau_hat + solve(L_tau, diag(ncol(L_tau))) %*% Z_tau # for large matrizes solve (XX, diag(ncol(XX))) is faster
+  
   
   
   # draw from conditional for phi #----------------------------------------------------------------
@@ -145,71 +146,66 @@ for (ii in 1:total_runs) {
     count_phi <- count_phi + 1
   }
   
+  
   # draw from condition for sigma^2_c #------------------------------------------------------------
   S_sigma2_c_temp <-
-    S_sigma2_c + 0.5 * t(y - tau) %*% (HH_phi %*% (y - tau))
+    S_sigma2_c + 0.5 * t(cc) %*% (HH_phi %*% cc)
   sigma2_c <-
     1 / rgamma(
       n = 1,
       shape = ny_sigma2_c + TT / 2,
       scale = 1 / S_sigma2_c_temp@x
     )
-  
-  # draw from conditional for sigma^2_tau #---------------------------------------------------------
-  # gamma = (tau(0), tau(-1))'
-  del_tau <-
-    c(gamma[1], tau[1:TT]) - c(gamma[2], gamma[1], tau[1:(TT - 1)])
-  sigma2_tau_grid <-
-    seq(
-      from = runif(1) / 1000,
-      to = b_sigma2_tau - runif(1) / 1000,
-      length.out = n_grid
-    )
-  lp_sigtau2 <-
-    f_tau(x = sigma2_tau_grid, TT = TT, del_tau = del_tau)
-  p_sigtau2 <- exp(lp_sigtau2 - max(lp_sigtau2))
-  p_sigtau2 <- p_sigtau2 / sum(p_sigtau2)
-  cdf_sigtau2 <- cumsum(p_sigtau2)
-  sigma2_tau <-
-    sigma2_tau_grid[which(runif(1) < cdf_sigtau2, TRUE)[1]]
-  
-  # draw from conditional for gamma #--------------------------------------------------------------
-  K_gamma <-
-    invV_gamma + t(X_gamma) %*% (HH_2 %*% X_gamma) / sigma2_tau
-  L_gamma <- chol(K_gamma)
-  XX <-
-    invV_gamma %*% gamma_0 + t(X_gamma) %*% (HH_2 %*% tau) / sigma2_tau
-  gamma_hat <- solve(K_gamma, XX)
-  Z_gamma <- rnorm(n = p, mean = 0, sd = 1)
-  gamma <- gamma_hat + solve(L_gamma) %*% Z_gamma
-  
-  
-  # store #----------------------------------------------------------------------------------------
-  if (ii > nburn) {
-    nn <- ii - nburn
-    store_tau[nn, ] <- tau@x
-    store_phi[nn, ] <- phi@x
-    store_gamma[nn, ] <- gamma@x
-    store_sigma2_tau[nn] <- sigma2_tau
-    store_sigma2_c[nn] <- sigma2_c
-  }
+
+
+# draw from conditional for sigma^2_tau #---------------------------------------------------------
+# gamma = (tau(0), tau(-1))'
+del_tau <-
+  c(gamma[1], tau[1:TT]) - c(gamma[2], gamma[1], tau[1:(TT - 1)])
+sigma2_tau_grid <-
+  seq(
+    from = runif(1) / 1000,
+    to = b_sigma2_tau - runif(1) / 1000,
+    length.out = n_grid
+  )
+lp_sigtau2 <-
+  f_tau(x = sigma2_tau_grid, TT = TT, del_tau = del_tau)
+p_sigtau2 <- exp(lp_sigtau2 - max(lp_sigtau2))
+p_sigtau2 <- p_sigtau2 / sum(p_sigtau2)
+cdf_sigtau2 <- cumsum(p_sigtau2)
+sigma2_tau <-
+  sigma2_tau_grid[which(runif(1) < cdf_sigtau2, TRUE)[1]]
+
+# draw from conditional for gamma #--------------------------------------------------------------
+K_gamma <-
+  invV_gamma + t(X_gamma) %*% (HH_2 %*% X_gamma) / sigma2_tau
+L_gamma <- chol(K_gamma)
+XX <-
+  invV_gamma %*% gamma_0 + t(X_gamma) %*% (HH_2 %*% tau) / sigma2_tau
+gamma_hat <- solve(K_gamma, XX)
+Z_gamma <- rnorm(n = p, mean = 0, sd = 1)
+gamma <- gamma_hat + solve(L_gamma) %*% Z_gamma
+
+
+# store #----------------------------------------------------------------------------------------
+if (ii > nburn) {
+  nn <- ii - nburn
+  store_tau[, nn] <- tau@x
+  store_theta[, nn] <-
+    c(phi@x, sigma2_tau, sigma2_c, gamma@x)
+}
 }
 print(Sys.time() - now)
 
 # Results #----------------------------------------------------------------------------------------
-tau_hat <- colMeans(store_tau)
-phi_hat <- colMeans(store_phi)
-gamma_hat <- colMeans(store_gamma)
-sigma2_tau_hat <- colMeans(store_sigma2_tau)
-sigma2_c_hat <- colMeans(store_sigma2_c)
+tau_hat <- rowMeans(store_tau)
+theta_hat <- rowMeans(store_theta)
 
-theta_hat <-
-  matrix(c(c(phi_hat), sigma2_c_hat, sigma2_tau_hat, c(gamma_hat)))
 
 cc <- ts(y - tau_hat, start = c(1949, 1), frequency = 4)
 plot(cc)
 
-
+print(theta_hat)
 timetk::tk_tbl(data = cc, rename_index = "time") %>%
   rename(c = 'Series 1') %>%
   ggplot(aes(x = time, y = c)) +

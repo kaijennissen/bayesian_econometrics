@@ -20,15 +20,18 @@ total_runs <- nsim + nburn
 
 data <-
     read.csv("./chapter_18/exercise_18_2/usgdp.csv", header = FALSE)
-y <- ts(data = data,
-        start = c(1959, 1),
-        freq = 4)
+y <- ts(
+    data = data,
+    start = c(1959, 1),
+    freq = 4
+)
 y <- c(log(y)) * 100
 y <- as.matrix(y)
 colnames(y) <- NULL
 
 sourceCpp("./chapter_18/exercise_18_2/gibbs_RcppArma.cpp",
-          embeddedR = FALSE, )
+    embeddedR = FALSE,
+)
 now <- Sys.time()
 return_list <- gibbsC(nsim = nsim, nburn = nburn, y = y)
 print(Sys.time() - now)
@@ -39,15 +42,13 @@ phi_hat <- rowMeans(return_list[[2]])
 gamma_hat <- rowMeans(return_list[[3]])
 sigma2_tau_hat <- mean(return_list[[4]])
 sigma2_c_hat <- mean(return_list[[5]])
-theta_hat <- matrix(c(c(phi_hat),sigma2_c_hat, sigma2_tau_hat, c(gamma_hat) ))
+theta_hat <- matrix(c(c(phi_hat), sigma2_c_hat, sigma2_tau_hat, c(gamma_hat)))
 
 cc <- ts(y - tau_hat, start = c(1949, 1), frequency = 4)
 
-timetk::tk_tbl(data = cc, rename_index = "time") %>% 
-    rename(c = 'Series 1') %>% 
-    ggplot(aes(x=time, y = c))+
+timetk::tk_tbl(data = cc, rename_index = "time") %>%
+    rename(c = "Series 1") %>%
+    ggplot(aes(x = time, y = c)) +
     geom_line()
 
 print(theta_hat)
-
-

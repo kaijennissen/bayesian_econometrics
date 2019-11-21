@@ -67,46 +67,46 @@ theta0[, 1] <- matrix(c(100, 10), nrow = 2)
 # Begin the Gibbs Sampler
 #----------------------
 for (i in 2:iter) {
-  total_resid <- 0
-  # Do conditional for all theta_i
-  for (j in 1:30) {
-    Dtemp <- solve(t(xuse) %*% xuse / sigma2[i - 1] + invSigma[, , i - 1])
-    dtemp <- t(xuse) %*% t(rats[j, 2:kk, drop = FALSE]) / sigma2[i - 1] + invSigma[, , i - 1] %*% theta0[, i - 1]
+    total_resid <- 0
+    # Do conditional for all theta_i
+    for (j in 1:30) {
+        Dtemp <- solve(t(xuse) %*% xuse / sigma2[i - 1] + invSigma[, , i - 1])
+        dtemp <- t(xuse) %*% t(rats[j, 2:kk, drop = FALSE]) / sigma2[i - 1] + invSigma[, , i - 1] %*% theta0[, i - 1]
+        H <- chol(Dtemp)
+        theta_temp <- Dtemp %*% dtemp + t(H) %*% matrix(rnorm(2), nrow = 2)
+        theta_int[j, i] <- theta_temp[1, 1]
+        theta_rate[j, i] <- theta_temp[2, 1]
+
+        # use this later for sigma^2 conditional
+        resids <- t(rats[j, 2:kk, drop = FALSE]) - xuse %*% c(theta_int[j, i], theta_rate[j, i])
+        tempp <- sum(resids^2)
+        total_resid <- total_resid + tempp
+    }
+    thetabar <- matrix(c(mean(theta_int[, i]), mean(theta_rate[, i])), nrow = 2)
+
+    # Do conditional for theta0
+    Dtemp <- solve(30 * invSigma[, , i - 1] + solve(C))
+    dtemp <- 30 * invSigma[, , i - 1] %*% thetabar + solve(C) %*% eta
     H <- chol(Dtemp)
-    theta_temp <- Dtemp %*% dtemp + t(H) %*% matrix(rnorm(2), nrow = 2)
-    theta_int[j, i] <- theta_temp[1, 1]
-    theta_rate[j, i] <- theta_temp[2, 1]
+    theta0[, i] <- Dtemp %*% dtemp + t(H) %*% matrix(rnorm(2), nrow = 2)
 
-    # use this later for sigma^2 conditional
-    resids <- t(rats[j, 2:kk, drop = FALSE]) - xuse %*% c(theta_int[j, i], theta_rate[j, i])
-    tempp <- sum(resids^2)
-    total_resid <- total_resid + tempp
-  }
-  thetabar <- matrix(c(mean(theta_int[, i]), mean(theta_rate[, i])), nrow = 2)
+    # Do Conditional for sigma2
+    sigma2[i, 1] <- 1 / rgamma(n = 1, shape = (150 / 2) + a, scale = (solve(.5 * total_resid + solve(b)))^-1)
 
-  # Do conditional for theta0
-  Dtemp <- solve(30 * invSigma[, , i - 1] + solve(C))
-  dtemp <- 30 * invSigma[, , i - 1] %*% thetabar + solve(C) %*% eta
-  H <- chol(Dtemp)
-  theta0[, i] <- Dtemp %*% dtemp + t(H) %*% matrix(rnorm(2), nrow = 2)
+    # Do Conditional for Sigma^-1.
+    tempp3 <- 0
+    for (jj in 1:30) {
+        tempp1 <- matrix(c(theta_int[jj, i], theta_rate[jj, i]), nrow = 2) - matrix(theta0[, i], nrow = 2)
+        tempp2 <- tempp1 %*% t(tempp1)
+        tempp3 <- tempp3 + tempp2
+    }
 
-  # Do Conditional for sigma2
-  sigma2[i, 1] <- 1 / rgamma(n = 1, shape = (150 / 2) + a, scale = (solve(.5 * total_resid + solve(b)))^-1)
+    invSigma[, , i] <- rWishart(n = 1, df = 30 + rho, Sigma = solve(tempp3[, , drop = TRUE] + rho * R))
 
-  # Do Conditional for Sigma^-1.
-  tempp3 <- 0
-  for (jj in 1:30) {
-    tempp1 <- matrix(c(theta_int[jj, i], theta_rate[jj, i]), nrow = 2) - matrix(theta0[, i], nrow = 2)
-    tempp2 <- tempp1 %*% t(tempp1)
-    tempp3 <- tempp3 + tempp2
-  }
-
-  invSigma[, , i] <- rWishart(n = 1, df = 30 + rho, Sigma = solve(tempp3[, , drop = TRUE] + rho * R))
-
-  Sigma <- solve(invSigma[, , i])
-  var_int[i, 1] <- Sigma[1, 1]
-  var_rate[i, 1] <- Sigma[2, 2]
-  correl[i, 1] <- Sigma[1, 2] / (sqrt(Sigma[1, 1]) * sqrt(Sigma[2, 2]))
+    Sigma <- solve(invSigma[, , i])
+    var_int[i, 1] <- Sigma[1, 1]
+    var_rate[i, 1] <- Sigma[2, 2]
+    correl[i, 1] <- Sigma[1, 2] / (sqrt(Sigma[1, 1]) * sqrt(Sigma[2, 2]))
 }
 
 int_use <- theta_int[, (burn + 1):iter]
@@ -120,24 +120,24 @@ print("Posterior means of parameters")
 print("Order: common intercept, common rate, variance_intercept, variance_rate, correlation")
 print("intercept(10), intercept(25), rate(10), rate(25)")
 parms <- rbind(
-  theta0[, (burn + 1):iter],
-  var_int[(burn + 1):iter],
-  var_rate[(burn + 1):iter],
-  correl[(burn + 1):iter],
-  theta_int[10, (burn + 1):iter],
-  theta_int[25, (burn + 1):iter],
-  theta_rate[10, (burn + 1):iter],
-  theta_rate[25, (burn + 1):iter]
+    theta0[, (burn + 1):iter],
+    var_int[(burn + 1):iter],
+    var_rate[(burn + 1):iter],
+    correl[(burn + 1):iter],
+    theta_int[10, (burn + 1):iter],
+    theta_int[25, (burn + 1):iter],
+    theta_rate[10, (burn + 1):iter],
+    theta_rate[25, (burn + 1):iter]
 )
 resu <- data.frame(
-  "Post.mean" = rowMeans(parms),
-  "Post.std" = apply(parms, 1, sd),
-  "10th percentile" = apply(parms, 1, quantile, .10),
-  "90th percentile" = apply(parms, 1, quantile, .90)
+    "Post.mean" = rowMeans(parms),
+    "Post.std" = apply(parms, 1, sd),
+    "10th percentile" = apply(parms, 1, quantile, .10),
+    "90th percentile" = apply(parms, 1, quantile, .90)
 )
 rownames(resu) <- c(
-  "alpha_0", "beta_0", "sigma^2_alpha", "sigma^2_beta",
-  "rho_alpha_beta", "alpha_10", "alpha_25", "beta_10", "beta_25"
+    "alpha_0", "beta_0", "sigma^2_alpha", "sigma^2_beta",
+    "rho_alpha_beta", "alpha_10", "alpha_25", "beta_10", "beta_25"
 )
 resu <- round(resu, 2)
 print(resu)

@@ -11,34 +11,34 @@ set.seed(123)
 # Impulse Resonse
 # -----------------------------
 construct_IR <- function(beta, Sig, n_hz, shock) {
-  nn <- dim(Sig)[1]
-  pp <- (dim(beta)[1] / nn - 1) / nn
-  CSig <- t(chol(Sig))
-  tmpZ1 <- matrix(0, nrow = pp, ncol = nn)
-  tmpZ <- matrix(0, nrow = pp, ncol = nn)
-  Yt1 <- CSig %*% shock
-  Yt <- matrix(0, nrow = nn)
-  yIR <- matrix(0, nrow = n_hz, ncol = nn)
-  yIR[1, ] <- t(Yt1)
-  for (t in 2:n_hz) {
-    # update the regressors
-    len <- dim(tmpZ)[1]
-    tmpZ <- rbind(t(Yt), tmpZ[1:(len - 1), ])
-    tmpZ1 <- rbind(t(Yt1), tmpZ1[1:(len - 1), ])
-    # evolution of variables if a shock hits
-    e <- CSig %*% matrix(rnorm(nn, 1))
-    Z1 <- matrix(c(t(tmpZ1)), nrow = 1, ncol = nn * pp)
-    Xt1 <- diag(nn) %x% cbind(1, Z1)
-    Yt1 <- Xt1 %*% beta + e
-    # evolution of variables if no shocks hit
+    nn <- dim(Sig)[1]
+    pp <- (dim(beta)[1] / nn - 1) / nn
+    CSig <- t(chol(Sig))
+    tmpZ1 <- matrix(0, nrow = pp, ncol = nn)
+    tmpZ <- matrix(0, nrow = pp, ncol = nn)
+    Yt1 <- CSig %*% shock
+    Yt <- matrix(0, nrow = nn)
+    yIR <- matrix(0, nrow = n_hz, ncol = nn)
+    yIR[1, ] <- t(Yt1)
+    for (t in 2:n_hz) {
+        # update the regressors
+        len <- dim(tmpZ)[1]
+        tmpZ <- rbind(t(Yt), tmpZ[1:(len - 1), ])
+        tmpZ1 <- rbind(t(Yt1), tmpZ1[1:(len - 1), ])
+        # evolution of variables if a shock hits
+        e <- CSig %*% matrix(rnorm(nn, 1))
+        Z1 <- matrix(c(t(tmpZ1)), nrow = 1, ncol = nn * pp)
+        Xt1 <- diag(nn) %x% cbind(1, Z1)
+        Yt1 <- Xt1 %*% beta + e
+        # evolution of variables if no shocks hit
 
-    Z <- matrix(c(t(tmpZ)), nrow = 1, ncol = nn * pp)
-    Xt <- diag(nn) %x% cbind(1, Z)
-    Yt <- Xt %*% beta + e
-    # the IR is the difference of the two scenarios
-    yIR[t, ] <- c(t(Yt1 - Yt))
-  }
-  return(yIR)
+        Z <- matrix(c(t(tmpZ)), nrow = 1, ncol = nn * pp)
+        Xt <- diag(nn) %x% cbind(1, Z)
+        Yt <- Xt %*% beta + e
+        # the IR is the difference of the two scenarios
+        yIR[t, ] <- c(t(Yt1 - Yt))
+    }
+    return(yIR)
 }
 
 us_macro <- read.csv("./chapter_20/exercise_20_1/US_macrodata.csv")
@@ -81,12 +81,12 @@ store_yIR <- matrix(0, nrow = n_hz, ncol = nn)
 # Set initial values
 #----------------------
 for (j in (pp + 1):tt) {
-  X_temp <- diag(nn) %x% cbind(1, t(c(t(us_macro[(j - 1):(j - pp), , drop = FALSE]))))
-  if (j == (pp + 1)) {
-    X <- X_temp
-  } else {
-    X <- rbind(X, X_temp)
-  }
+    X_temp <- diag(nn) %x% cbind(1, t(c(t(us_macro[(j - 1):(j - pp), , drop = FALSE]))))
+    if (j == (pp + 1)) {
+        X <- X_temp
+    } else {
+        X <- rbind(X, X_temp)
+    }
 }
 
 # initialize the chain
@@ -99,42 +99,42 @@ Sigma <- e %*% t(e) / tt
 # Begin the Gibbs Sampler
 #----------------------
 for (i in 1:(niter + burn)) {
-  # Do conditional for beta
-  XiSig <- t(X) %*% (diag((tt - pp)) %x% solve(Sigma))
-  Dtemp <- solve(XiSig %*% X + invSigma0)
-  dtemp <- (XiSig %*% y + invSigma0 %*% mu0)
-  LL <- chol(Dtemp) # chol returns the upper triangular
-  beta <- Dtemp %*% dtemp + t(LL) %*% matrix(rnorm(dd))
+    # Do conditional for beta
+    XiSig <- t(X) %*% (diag((tt - pp)) %x% solve(Sigma))
+    Dtemp <- solve(XiSig %*% X + invSigma0)
+    dtemp <- (XiSig %*% y + invSigma0 %*% mu0)
+    LL <- chol(Dtemp) # chol returns the upper triangular
+    beta <- Dtemp %*% dtemp + t(LL) %*% matrix(rnorm(dd))
 
-  # Do conditional for Sigma
-  Dtemp <- matrix(0, nrow = nn, ncol = nn)
-  for (j in (pp + 1):tt) {
-    X_temp <- diag(nn) %x% cbind(1, t(c(t(us_macro[(j - 1):(j - pp), , drop = FALSE]))))
-    y_temp <- t(us_macro[j, , drop = FALSE])
-    eps_temp <- y_temp - X_temp %*% beta
-    Dtemp <- Dtemp + eps_temp %*% t(eps_temp)
-  }
-  Dtemp <- Dtemp + S0
-  dtemp <- v0 + (tt - pp)
+    # Do conditional for Sigma
+    Dtemp <- matrix(0, nrow = nn, ncol = nn)
+    for (j in (pp + 1):tt) {
+        X_temp <- diag(nn) %x% cbind(1, t(c(t(us_macro[(j - 1):(j - pp), , drop = FALSE]))))
+        y_temp <- t(us_macro[j, , drop = FALSE])
+        eps_temp <- y_temp - X_temp %*% beta
+        Dtemp <- Dtemp + eps_temp %*% t(eps_temp)
+    }
+    Dtemp <- Dtemp + S0
+    dtemp <- v0 + (tt - pp)
 
-  Sigma <- solve(rWishart(1, Sigma = solve(Dtemp), df = dtemp)[, , 1])
-  if (i %% 1000 == 0) {
-    print(paste("loops... ", i))
-  }
+    Sigma <- solve(rWishart(1, Sigma = solve(Dtemp), df = dtemp)[, , 1])
+    if (i %% 1000 == 0) {
+        print(paste("loops... ", i))
+    }
 
-  if (i > burn) {
-    nsim <- i - burn
-    store_beta[, nsim] <- beta
-    store_Sigma[, , nsim] <- Sigma
+    if (i > burn) {
+        nsim <- i - burn
+        store_beta[, nsim] <- beta
+        store_Sigma[, , nsim] <- Sigma
 
-    # calculate impulse response
-    CSig <- t(chol(Sigma))
-    # 100 basis pts rather than 1 std. dev.
-    shock <- matrix(c(0, 0, 1)) / CSig[nn, nn]
-    yIR <- construct_IR(beta = beta, Sig = Sigma, n_hz = n_hz, shock = shock)
+        # calculate impulse response
+        CSig <- t(chol(Sigma))
+        # 100 basis pts rather than 1 std. dev.
+        shock <- matrix(c(0, 0, 1)) / CSig[nn, nn]
+        yIR <- construct_IR(beta = beta, Sig = Sigma, n_hz = n_hz, shock = shock)
 
-    store_yIR <- store_yIR + yIR
-  }
+        store_yIR <- store_yIR + yIR
+    }
 }
 
 beta_hat <- round(apply(store_beta, MARGIN = c(1), FUN = mean), 4)

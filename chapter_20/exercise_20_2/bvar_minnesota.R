@@ -14,16 +14,16 @@ Yraw <- as.matrix(us_macro[!is.na(us_macro$INFLATION), 2:4])
 
 tt <- nrow(Yraw) # number of observations
 nn <- ncol(Yraw) # number of variables
-intercept <-  TRUE
+intercept <- TRUE
 pp <- 1 # lags, to be specified by the researcher
 dd <- nn * (1 + nn * pp)
 
 Ylag <- stats::lag(as.xts(ts(Yraw)), c(1:pp))
 
 if (intercept) {
-  X1 <- cbind(1, Ylag[(pp + 1):tt, ])
+    X1 <- cbind(1, Ylag[(pp + 1):tt, ])
 } else {
-  X1 <- Ylag[(pp + 1):tt, ]
+    X1 <- Ylag[(pp + 1):tt, ]
 }
 
 Y1 <- Yraw[(pp + 1):tt, ]
@@ -36,7 +36,7 @@ X <- X1
 TT <- dim(X)[1]
 KK <- dim(X)[2]
 A_OLS <- solve(t(X) %*% X) %*% (t(X) %*% Y)
-a_OLS <-  c(A_OLS)         
+a_OLS <- c(A_OLS)
 SSE <- t(Y - X %*% A_OLS) %*% (Y - X %*% A_OLS)
 Sigma_OLS <- SSE / (TT - KK)
 
@@ -68,19 +68,19 @@ invV0 <- solve(V0)
 # Calculate the Posterior
 #---------------------------------
 for (j in (pp + 1):tt) {
-  X_temp <- diag(nn) %x% cbind(1, t(c(t(Yraw[(j - 1):(j - pp), , drop = FALSE]))))
-  if (j == (pp + 1)) {
-    X <- X_temp
-  } else {
-    X <- rbind(X, X_temp)
-  }
+    X_temp <- diag(nn) %x% cbind(1, t(c(t(Yraw[(j - 1):(j - pp), , drop = FALSE]))))
+    if (j == (pp + 1)) {
+        X <- X_temp
+    } else {
+        X <- rbind(X, X_temp)
+    }
 }
 
 XiSig <- t(X) %*% (diag((tt - pp)) %x% solve(Sigma_OLS))
 K_beta <- XiSig %*% X + invV0
 beta_hat <- solve(K_beta) %*% (XiSig %*% y)
 b <- matrix(beta_hat[1:nn])
-A1 <- matrix(beta_hat[(nn+1):(nn*(1+nn))], ncol = nn)
+A1 <- matrix(beta_hat[(nn + 1):(nn * (1 + nn))], ncol = nn)
 
 # ---------------------------------------------------------------------------------------
 # # Y(t) =  b + A1 * Y(t-1) +  A2 * Y(t-2) + ... + Ap * Y(t-p)

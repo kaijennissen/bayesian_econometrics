@@ -10,6 +10,7 @@ library(Matrix)
 library(dplyr)
 library(ggplot2)
 library(SuppDists)
+library(RcppZiggurat)
 
 rm(list = ls())
 now <- Sys.time()

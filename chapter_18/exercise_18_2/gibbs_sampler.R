@@ -4,11 +4,12 @@
 # Bayesian Econometric Methods (2nd edition).
 # Cambridge: Cambridge University Press.
 #------------------------------------------------------------------------------
-# run time: 138 sec
+# run time: 94.8 sec
 
 library(Matrix)
 library(dplyr)
 library(ggplot2)
+library(SuppDists)
 
 rm(list = ls())
 now <- Sys.time()
@@ -19,15 +20,18 @@ total_runs <- nsim + nburn
 
 data <-
     read.csv("./chapter_18/exercise_18_2/usgdp.csv", header = FALSE)
-y <- ts(data = data,
-        start = c(1959, 1),
-        freq = 4)
+y <- ts(
+    data = data,
+    start = c(1959, 1),
+    freq = 4
+)
 y <- c(log(y)) * 100
 y <- as.matrix(y)
 colnames(y) <- NULL
 
 TT <- dim(y)[1]
 p <- 2
+
 
 
 # priors #---------------------------------------------------------------------
@@ -52,11 +56,11 @@ S_sigma2_c <- 2
 # initial values #-------------------------------------------------------------
 
 f_tau <- function(x, TT, del_tau) {
-    -TT / 2 * log(x) - sum(diff(del_tau)[-TT] ** 2) / (2 * x)
+    -TT / 2 * log(x) - sum(diff(del_tau)[-TT]**2) / (2 * x)
 }
 
 
-phi <- matrix(c(1.34, -0.7))
+phi <- Matrix(c(1.34, -0.7))
 sigma2_c <- .5
 sigma2_tau <- .001
 gamma <- matrix(c(y[1], y[1])) # !! gamma = (tau(0), tau(-1))'
@@ -65,38 +69,26 @@ gamma <- matrix(c(y[1], y[1])) # !! gamma = (tau(0), tau(-1))'
 diags_h2 <- list(rep(1, TT), rep(-2, TT - 1), rep(1, TT - 2))
 H_2 <-
     bandSparse(TT,
-               k = c(0, -1, -2),
-               diag = diags_h2,
-               symm = FALSE)
-
-microbenchmark::microbenchmark(
-    bandSparse(
-        TT,
         k = c(0, -1, -2),
         diag = diags_h2,
         symm = FALSE
-    ),
-    Diagonal(TT) + sparseMatrix(2:TT,  1:(TT - 1), x = rep(-2, TT - 1), dims = c(TT, TT)) +
-        sparseMatrix(3:TT,  1:(TT - 2), x = rep(1, TT - 2), dims = c(TT, TT)),
-    times = 1000,
-    unit = "s"
-)
+    )
 
 
 invH_2 <- solve(H_2, diag(TT))
 HH_2 <- crossprod(H_2)
 
-microbenchmark::microbenchmark(crossprod(H_2), t(H_2) %*% H_2)
 
 # H_phi
 diags_phi <-
     list(rep(1, TT), rep(-phi[1], TT - 1), rep(-phi[2], TT - 2))
 H_phi <-
     bandSparse(TT,
-               k = c(0, -1, -2),
-               diag = diags_phi,
-               symm = FALSE)
-#HH_phi <- t(H_phi) %*% H_phi
+        k = c(0, -1, -2),
+        diag = diags_phi,
+        symm = FALSE
+    )
+# HH_phi <- t(H_phi) %*% H_phi
 HH_phi <- crossprod(H_phi)
 
 # X_gamma
@@ -118,23 +110,29 @@ for (ii in 1:total_runs) {
     alpha_tau_tilde[2, 1] <- -gamma[1]
     alpha_tau <- invH_2 %*% alpha_tau_tilde
     K_tau <- HH_phi / sigma2_c + HH_2 / sigma2_tau
-    L_tau <- chol(K_tau)
+    # L_tau <- chol(K_tau)
     XX_tau <-
         (HH_phi %*% y) / sigma2_c + (HH_2 %*% alpha_tau) / sigma2_tau
     tau_hat <- solve(K_tau, XX_tau)
-    Z_tau <- matrix(rnorm(n = TT, mean = 0, sd = 1))
-    tau <- tau_hat + solve(L_tau, diag(ncol(L_tau))) %*% Z_tau
-    
-    
+    # Z_tau <- matrix(rnorm(n = TT, mean = 0, sd = 1))
+    # Z_tau <-  as(zrnorm(n = TT), "dgeMatrix")
+    Z_tau <- zrnorm(n = TT)
+    tau <- tau_hat + solve(chol(K_tau), diag(TT)) %*% zrnorm(n = TT)
+    tau <- tau@x
+
+
     # draw from conditional for phi #------------------------------------------
     cc <- y - tau
+
     X_phi <- cbind(c(0, cc[1:(TT - 1)]), c(0, 0, cc[1:(TT - 2)]))
     XX_phi <- crossprod(X_phi)
     K_phi <- invV_phi + XX_phi / sigma2_c
     L_phi <- chol(K_phi) #
     XX <- invV_phi %*% phi_0 + crossprod(X_phi, cc) / sigma2_c
     phi_hat <- solve(K_phi, XX)
-    Z_phi <- matrix(rnorm(n = p, mean = 0, sd = 1))
+    # Z_phi <- matrix(rnorm(n = p, mean = 0, sd = 1))
+    # Z_phi <- matrix(rziggurat(n = p))
+    Z_phi <- zrnorm(n = p)
     phic <- phi_hat + solve(L_phi) %*% Z_phi
     # stationarity region for AR(2)
     # 1) phi_1 + phi_2 < 1
@@ -148,14 +146,15 @@ for (ii in 1:total_runs) {
             list(rep(1, TT), rep(-phi[1], TT - 1), rep(-phi[2], TT - 2))
         H_phi <-
             bandSparse(TT,
-                       k = c(0, -1, -2),
-                       diag = diags_phi,
-                       symm = FALSE)
+                k = c(0, -1, -2),
+                diag = diags_phi,
+                symm = FALSE
+            )
         HH_phi <- crossprod(H_phi)
         count_phi <- count_phi + 1
     }
-    
-    
+
+
     # draw from condition for sigma^2_c #--------------------------------------
     S_sigma2_c_temp <- S_sigma2_c + 0.5 * t(cc) %*% (HH_phi %*% cc)
     sigma2_c <-
@@ -164,8 +163,8 @@ for (ii in 1:total_runs) {
             shape = ny_sigma2_c + TT / 2,
             scale = 1 / S_sigma2_c_temp@x
         )
-    
-    
+
+
     # draw from conditional for sigma^2_tau #---------------------------------------------------------
     # gamma = (tau(0), tau(-1))'
     del_tau <-
@@ -177,16 +176,18 @@ for (ii in 1:total_runs) {
             length.out = n_grid
         )
     lp_sigtau2 <-
-        f_tau(x = sigma2_tau_grid,
-              TT = TT,
-              del_tau = del_tau)
+        f_tau(
+            x = sigma2_tau_grid,
+            TT = TT,
+            del_tau = del_tau
+        )
     p_sigtau2 <- exp(lp_sigtau2 - max(lp_sigtau2))
     p_sigtau2 <- p_sigtau2 / sum(p_sigtau2)
     cdf_sigtau2 <- cumsum(p_sigtau2)
     sigma2_tau <-
         sigma2_tau_grid[which(runif(1) < cdf_sigtau2, TRUE)[1]]
-    
-    
+
+
     # draw from conditional for gamma #----------------------------------------
     K_gamma <-
         invV_gamma + t(X_gamma) %*% (HH_2 %*% X_gamma) / sigma2_tau
@@ -194,16 +195,17 @@ for (ii in 1:total_runs) {
     XX <-
         invV_gamma %*% gamma_0 + t(X_gamma) %*% (HH_2 %*% tau) / sigma2_tau
     gamma_hat <- solve(K_gamma, XX)
-    Z_gamma <- rnorm(n = p, mean = 0, sd = 1)
+    # Z_gamma <- rnorm(n = p, mean = 0, sd = 1)
+    Z_gamma <- zrnorm(n = p)
     gamma <- gamma_hat + solve(L_gamma) %*% Z_gamma
-    
-    
+
+
     # store #------------------------------------------------------------------
     if (ii > nburn) {
         nn <- ii - nburn
-        store_tau[, nn] <- tau@x
+        store_tau[, nn] <- tau
         store_theta[, nn] <-
-            c(phi@x, sigma2_c, sigma2_tau, gamma@x)
+            c(c(phi), sigma2_c, sigma2_tau, gamma@x)
     }
 }
 print(Sys.time() - now)

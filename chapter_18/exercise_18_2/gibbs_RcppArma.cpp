@@ -1,9 +1,11 @@
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
+#include <random>
 // [[Rcpp::depends(RcppArmadillo, Rcpp)]]
 
 using namespace Rcpp;
 using namespace arma;
+
 
 // [[Rcpp::export]]
 List gibbsC(int nsim, int nburn, mat y)
@@ -168,9 +170,9 @@ List gibbsC(int nsim, int nburn, mat y)
     mat gamma_store(2, nsim, fill::zeros);
     vec gamma_draw(1, 1, fill::zeros);
 
+        
     for (int i = 0; i < nsim + nburn; i++)
     {
-
         // ------------------------------------------------------------
         // draw from conditional for tau
         // ------------------------------------------------------------
@@ -181,8 +183,8 @@ List gibbsC(int nsim, int nburn, mat y)
         K_tau = HH_phi / sigma2_c + HH_2 / sigma2_tau;
         XX_tau = HH_phi * y / sigma2_c + HH_2 * alpha_tau / sigma2_tau;
         tau_hat = solve(mat(K_tau), XX_tau);
-        tau = tau_hat + solve(chol(mat(K_tau), "upper"), eye(TT, TT)) * randn(H_2.n_cols, 1);
-
+        tau = tau_hat + solve(chol(mat(K_tau), "upper"), eye(TT, TT)) * randn(TT);
+        
         // ------------------------------------------------------------
         // draw from conditional for phi
         // ------------------------------------------------------------

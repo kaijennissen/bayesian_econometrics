@@ -5,7 +5,7 @@
 # Cambridge: Cambridge University Press.
 #--------------------------------------------------------------------------------------------------
 
-# run time: 96 sec
+# run time: 8 sec
 
 library(Rcpp)
 library(Matrix)
@@ -32,6 +32,7 @@ colnames(y) <- NULL
 sourceCpp("./chapter_18/exercise_18_2/gibbs_RcppArma.cpp",
     embeddedR = FALSE,
 )
+
 now <- Sys.time()
 return_list <- gibbsC(nsim = nsim, nburn = nburn, y = y)
 print(Sys.time() - now)

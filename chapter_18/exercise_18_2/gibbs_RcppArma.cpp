@@ -1,6 +1,5 @@
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
-#include <random>
 // [[Rcpp::depends(RcppArmadillo, Rcpp)]]
 
 using namespace Rcpp;

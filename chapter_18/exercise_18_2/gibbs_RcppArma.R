@@ -5,7 +5,23 @@
 # Cambridge: Cambridge University Press.
 #--------------------------------------------------------------------------------------------------
 
-# run time: 8 sec
+# run time: 8 sec when using the following compiler options specified in 
+# ~/.R/Makevars options on a MacBookPro 10.14.6
+# CC=/usr/local/bin/gcc-9
+# CXX=/usr/local/bin/g++-9
+# CXX1X=/usr/local/bin/g++-9
+# CXX11=/usr/local/bin/g++-9
+# SHLIB_CXXLD=/usr/local/bin/g++-9
+# FC=/usr/local/bin/gfortran-9
+# F77=/usr/local/bin/gfortran-9
+# MAKE=make -j11
+#  
+# SHLIB_OPENMP_CFLAGS=-fopenmp
+# SHLIB_OPENMP_CXXFLAGS=-fopenmp
+# SHLIB_OPENMP_FCFLAGS=-fopenmp
+# SHLIB_OPENMP_FFLAGS=-fopenmp
+# PKG_CFLAGS=-fopenmp
+# PKG_LIBS=-lgomp
 
 library(Rcpp)
 library(Matrix)
@@ -14,8 +30,8 @@ library(ggplot2)
 
 rm(list = ls())
 
-nsim <- 10000
-nburn <- 1000
+nsim <- 100000
+nburn <- 2000
 total_runs <- nsim + nburn
 
 data <-
@@ -29,8 +45,12 @@ y <- c(log(y)) * 100
 y <- as.matrix(y)
 colnames(y) <- NULL
 
+
 sourceCpp("./chapter_18/exercise_18_2/gibbs_RcppArma.cpp",
-    embeddedR = FALSE,
+          showOutput = TRUE,
+          rebuild = TRUE,
+          #dryRun = TRUE,
+          verbose = TRUE
 )
 
 now <- Sys.time()

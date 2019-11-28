@@ -66,8 +66,8 @@ int main()
     y = log(y) * 100;
 
     int TT = y.n_rows;
-    int nsim = 100000;
-    int nburn = 20000;
+    int nsim = 10000;
+    int nburn = 1000;
 
     // ----------------------------------------------------------------
     // Priors

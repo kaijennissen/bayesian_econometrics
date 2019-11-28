@@ -43,3 +43,4 @@ rsconnect/
 *.csv
 *.txt
 
+packrat/lib*/

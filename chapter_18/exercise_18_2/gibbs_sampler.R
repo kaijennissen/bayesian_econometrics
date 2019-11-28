@@ -15,6 +15,8 @@ library(RcppZiggurat)
 rm(list = ls())
 now <- Sys.time()
 
+set.seed(123)
+
 nsim <- 10000
 nburn <- 1000
 total_runs <- nsim + nburn
@@ -209,10 +211,11 @@ print(Sys.time() - now)
 tau_hat <- rowMeans(store_tau)
 theta_hat <- rowMeans(store_theta)
 print(theta_hat)
+# 1.313774069  -0.380283872   0.811751869   0.002302012 747.395159671 746.471692513
 
 cc <- ts(y - tau_hat, start = c(1949, 1), frequency = 4)
 
-print(theta_hat)
+
 timetk::tk_tbl(data = cc, rename_index = "time") %>%
     rename(c = "Series 1") %>%
     ggplot2::ggplot(aes(x = time, y = c)) +

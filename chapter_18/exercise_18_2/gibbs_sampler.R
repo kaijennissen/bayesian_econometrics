@@ -11,6 +11,7 @@ library(dplyr)
 library(ggplot2)
 library(SuppDists)
 library(RcppZiggurat)
+library(Rcpp)
 
 rm(list = ls())
 now <- Sys.time()

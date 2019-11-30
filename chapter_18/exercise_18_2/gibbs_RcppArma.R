@@ -90,6 +90,17 @@ remove_custom_makevars <- function() {
     }
 }
 
+
+create_custom_makevars()
+sourceCpp(
+    "./chapter_18/exercise_18_2/gibbs_RcppArma.cpp",
+    showOutput = TRUE,
+    rebuild = TRUE,
+    #dryRun = TRUE,
+    verbose = TRUE
+)
+remove_custom_makevars()
+
 nsim <- 10000
 nburn <- 1000
 total_runs <- nsim + nburn
@@ -104,15 +115,6 @@ y <- as.matrix(y)
 colnames(y) <- NULL
 
 
-create_custom_makevars()
-sourceCpp(
-    "./chapter_18/exercise_18_2/gibbs_RcppArma.cpp",
-    showOutput = TRUE,
-    rebuild = TRUE,
-    #dryRun = TRUE,
-    verbose = TRUE
-)
-remove_custom_makevars()
 
 now <- Sys.time()
 return_list <- gibbsC(nsim = nsim, nburn = nburn, y = y)

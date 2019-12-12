@@ -29,7 +29,6 @@
 #------------------------------------------------------------------------------
 
 library(Matrix)
-
 rm(list = ls())
 
 
@@ -93,6 +92,15 @@ create_RHS <- function(YY, M, p, t) {
     return(list(x_t, K))
 }
 
+# mvnnpdf |-----------------------------------------------------------------
+
+mvnpdfs <- function(X, Mu, Sigma){
+    1/sqrt(2*pi)*det(Sigma)^(-0.5)*exp(-0.5*t(X-Mu)%*%solve(Sigma, diag(dim(Sigma)[1]))%*%(X-Mu))
+}
+
+
+
+
 # --------------------| END HELPER FUNCTIONS |---------------------------------
 
 
@@ -148,8 +156,9 @@ yearlab <- .data[, 1, drop = TRUE][-c(1:(p + 1))]
 
 T_thres <- which(yearlab == t0)  # Convert t0 to numeric value
 country_index = 0
-for (country_index in 1:N) {
-    country_index = country_index + 1
+#for (country_index in 1:N) {
+     
+   country_index = country_index + 1
     Y1 <-
         vector("list", varsN) # TODO: decide whether to use arrays, lists or matrices
     M <- vector("list", varsN)
@@ -197,7 +206,8 @@ for (country_index in 1:N) {
     #----------------------------| PRELIMINARIES |-----------------------------
     
     anumber <-  t - T_thres + 1
-    y_fore <-  vector("list", nos)
+    y_fore <-  vector("list", length=nos)
+    y_fore[[ss]] <- array(NA, dim=c(nfore,4,nsim))
     
     if (country_index == 1) {
         LOG_PL_VAR <-  zeros(anumber, nfore)
@@ -212,8 +222,9 @@ for (country_index in 1:N) {
     
     #=======================| BEGIN KALMAN FILTER ESTIMATION |=================
     
-    for (irep in T_thres:t) {
-        # if (irep %/% ceiling(t / 40) == 0) {
+    #for (irep in T_thres:t) {
+    irep=T_thres 
+       # if (irep %/% ceiling(t / 40) == 0) {
         #     disp t([num2str(100 * (irep / t))]) # completed'
         #     toc
         # }
@@ -222,12 +233,12 @@ for (country_index in 1:N) {
             solve(crossprod(x_t[[1]][1:irep, ]),  crossprod(x_t[[1]][1:irep, ],  y_t[[1]][1:irep, ]))
         
         sigma_OLS <-
-            crossprod(y_t[[1]][1:irep, ] - x_t[[1]][1:irep, ] %*% beta_OLS) / (irep -
-                                                                                   M[[1]])
+            crossprod(y_t[[1]][1:irep, ] - x_t[[1]][1:irep, ] %*% beta_OLS) / (irep - M[[1]])
         
-        if (irep >= T_thres) {
+        # if (irep >= T_thres) {
             # Start predictive simulation
             chol_S <-  chol(sigma_OLS)
+            Yraw_f <- vector("list", length=1)
             
             for (sim in 1:nsim) {
                 Y_hat <-  0
@@ -236,20 +247,28 @@ for (country_index in 1:N) {
                     c(1, y_t[[ss]][irep, ], x_f[[ss]][irep, 1:M[[ss]] * (p - 1)])
                 Y_hat <-
                     X_FORE %*% beta_OLS + rnorm(M[[ss]]) %*% chol_S
-                y_fore[[ss]] <-  Y_hat
+                y_fore[[ss]][1,,sim] <-  Y_hat
+                
                 # Now do forecasts for h>1
                 
                 for (ii in 1:(nfore - 1)) {
-                    if (ii <= p) {
-                        # if h<=p (number of lags)
+                    if (ii <= p) {# if h<=p (number of lags)
+     
+                        if (ii==1){
+                            
                         X_new_temp <-
                             c(1, Y_hat, X_FORE[2:(M[[ss]] * (p - ii) + 1)])
+                        } else{
+                            X_new_temp <-
+                                c(1, Y_hat)
+                        }
+                        
                         Y_temp <-
-                            X_new_temp %*% beta_OLS + rnorm(M[[ss]]) %*% chol_S
+                            X_new_temp %*% beta_OLS + rnorm(M[[ss]])%*%chol_S
                         Y_hat <-  c(Y_temp, Y_hat)
                     } else {
                         # if h>p (number of lags)
-                        X_new_temp <-  c(1, Y_hat[1:M[[ss]] * p])
+                        X_new_temp <-  c(1, Y_hat[1:(M[[ss]] * p)])
                         Y_temp <-
                             X_new_temp %*% beta_OLS + rnorm(M[[ss]]) %*% chol_S
                         Y_hat <-  c(Y_temp, Y_hat)
@@ -264,50 +283,44 @@ for (country_index in 1:N) {
             
             # Find "observed" out-of-sample data for MSFE and MAFE calculations
             if (irep <= t - nfore) {
-            #    Yraw_f[1, 1] = y_t[1, 1][irep + 1:irep + nfore, , [] #Pseudo out-of-sample observations
+                Yraw_f[[1]] = y_t[[1]][(irep + 1):(irep + nfore), ] #Pseudo out-of-sample observations
             } else {
-            #    Yraw_f[1, 1] = [y_t[1, 1][irep + 1:t, ]  NaN(nfore - (t - irep), M(1))]
+                Yraw_f[[1]] = rbind(y_t[[1]][(irep + 1):t, ],  matrix(NA, nrow = nfore - (t - irep), ncol = M[[1]]))
             }
             
             # Now we have the predictions for each model & the associated model
             # probabilities
-            
+            y_t_VAR <- array(NA, dim=c(nfore,100, 100))
             for (ii in 1:nfore) {
                 focus_vars = 1
-           #     y_t_VAR(ii, :, irep - T_thres + 1) = mean(y_fore{
-            #        ss, 1
-            #    }(ii, focus_vars, :), 3)
-                #variance_VAR = cov(squeeze(y_fore{ss,1}(ii,focus_vars,:))')
+                y_t_VAR[ii,, irep - T_thres + 1] = mean(y_fore[[ss]][ii,focus_vars,], na.rm=TRUE)
+                variance_VAR = cov(t(y_fore[[ss]][ii,focus_vars,]))
                 
-                #LOG_PL_VAR(irep-T_thres+1,ii) = log(mvnpdfs(Yraw_f[1, 1](ii,focus_vars)',y_t_VAR(ii,:,irep-T_thres+1)',variance_VAR) + offset)
-                #MAFE_VAR(irep-T_thres+1,(country_index-1)*nfocus+1:country_index*nfocus,ii) = abs(Yraw_f[1, 1](ii,focus_vars) - squeeze(y_t_VAR(ii,:,irep-T_thres+1)))
-                #MSFE_VAR(irep-T_thres+1,(country_index-1)*nfocus+1:country_index*nfocus,ii) = (Yraw_f[1, 1](ii,focus_vars) - squeeze(y_t_VAR(ii,:,irep-T_thres+1))).^2
+                # TODO fix mvnpdf to cover 3D-case
+                LOG_PL_VAR[irep-T_thres+1,ii] = log(mvnpdfs(t(Yraw_f[[1]][ii,focus_vars]), t(y_t_VAR[ii,,irep-T_thres+1]), variance_VAR) + offset)
+                MAFE_VAR[irep-T_thres+1, (country_index-1)*nfocus+1:country_index*nfocus,ii] = abs(Yraw_f[[1]][ii,focus_vars] - squeeze(y_t_VAR[ii,,irep-T_thres+1]))
+                MSFE_VAR[irep-T_thres+1, (country_index-1)*nfocus+1:country_index*nfocus,ii] = (Yraw_f[[1]][ii,focus_vars] - squeeze(y_t_VAR[ii,,irep-T_thres+1]))^2
                 
-                # MAFE_RW(irep-T_thres+1,(country_index-1)*nfocus+1:country_index*nfocus,ii) = abs(y_t[1, 1](irep,focus_vars)' - Yraw_f[1, 1](ii,focus_vars))
-                #                 MSFE_RW(irep-T_thres+1,(country_index-1)*nfocus+1:country_index*nfocus,ii) = (y_t[1, 1](irep,focus_vars)' - Yraw_f[1, 1](ii,focus_vars)).^2
+                MAFE_RW[irep-T_thres+1,(country_index-1)*nfocus+1:country_index*nfocus,ii] = abs(t(y_t[[1]][irep,focus_vars]) - Yraw_f[[1]][ii,focus_vars])
+                MSFE_RW[irep-T_thres+1,(country_index-1)*nfocus+1:country_index*nfocus,ii] = t(y_t[[1]][irep,focus_vars]) - Yraw_f[[1]][ii,focus_vars]^2
                 
                 j_in = 0
                 
-                # for (j in focus_vars) {
-                #     j_in = j_in + 1
-                #     logpl_VAR(
-                #         irep - T_thres + 1,
-                #         (country_index - 1) * nfocus + 1:country_index * nfocus,
-                #         ii
-                #     ) = log(
-                #         mvnpdfs(
-                #             Yraw_f{
-                #                 ss
-                #             }(ii, j)',y_t_VAR(ii,j_in,irep-T_thres+1)',
-                #             variance_VAR(j_in, j_in)
-                #         ) + offset
-                #     )
-                # }
+                for (j in 1:focus_vars) {
+                    j_in <-  j_in + 1
+                    logpl_VAR[
+                        irep - T_thres + 1,
+                        (country_index - 1) * nfocus + 1:country_index * nfocus,
+                        ii
+                    ] = log(
+                       mvnpdfs(t(Yraw_f[[ss]][ii, j]), t(y_t_VAR[ii,j_in,irep-T_thres+1]), variance_VAR[j_in, j_in]) + offset
+                    )
+                }
             }
         }
         
     }
-}
+#}
 
 # END OF KALMAN FILTER ESTIMATION |============================================
 

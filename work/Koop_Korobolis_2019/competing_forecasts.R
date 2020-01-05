@@ -95,7 +95,14 @@ create_RHS <- function(YY, M, p, t) {
 # mvnnpdf |-----------------------------------------------------------------
 
 mvnpdfs <- function(X, Mu, Sigma){
-    1/sqrt(2*pi)*det(Sigma)^(-0.5)*exp(-0.5*t(X-Mu)%*%solve(Sigma, diag(dim(Sigma)[1]))%*%(X-Mu))
+    if (ncol(X)==1){
+        return (1/sqrt(2*pi)*det(Sigma)^(-0.5)*exp(-0.5*t(X-Mu)%*%solve(Sigma, diag(dim(Sigma)[1]))%*%(X-Mu)))
+    } else{
+        pp <- vector(mode="numeric", length = ncol(X))
+        for (i in 1:ncol(X)){
+            pp[i] <- 1/sqrt(2*pi)*det(Sigma[,,i])^(-0.5)*exp(-0.5*t(X[,i]-Mu)%*%solve(Sigma[,,i], diag(dim(Sigma[,,i])[1]))%*%(X[,i]-Mu))
+        }
+    }
 }
 
 

@@ -137,3 +137,4 @@ timetk::tk_tbl(data = cc, rename_index = "time") %>%
     geom_line()
 
 print(theta_hat)
+

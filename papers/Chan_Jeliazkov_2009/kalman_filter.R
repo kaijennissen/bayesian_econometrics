@@ -5,7 +5,6 @@ library(Matrix)
 # y(t) = F * x(t) + u(t)
 # x(t) = G * x_(t-1) + v(t)
 
-
 plot(AirPassengers)
 y <- c(AirPassengers)
 

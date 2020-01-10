@@ -1,10 +1,7 @@
 #!/bin/bash
-
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-
-INPUT_DIR=$BASE_DIR/chapter_18/exercise_18_2
-echo $BASE_DIRecho $INPUT_DIR
+INPUT_DIR=$BASE_DIR/bayesian_econometric_methods
 
 docker run -it \
  --rm \

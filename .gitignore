@@ -42,6 +42,7 @@ rsconnect/
 # Data Files
 *.csv
 *.txt
+*.pdf
 
 packrat/lib*/
 

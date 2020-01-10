@@ -43,6 +43,9 @@ rsconnect/
 *.csv
 *.txt
 *.pdf
+*.mat
+*.xlsx
+*.xls
 
 packrat/lib*/
 

@@ -46,6 +46,7 @@ rsconnect/
 *.mat
 *.xlsx
 *.xls
+*.dat
 
 packrat/lib*/
 

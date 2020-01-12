@@ -8,7 +8,7 @@
 
 library(Matrix)
 library(SuppDists)
-library(RcppZiggurat)
+#library(RcppZiggurat)
 library(Rcpp)
 
 
@@ -28,8 +28,8 @@ now <- Sys.time()
 
 set.seed(123)
 
-nsim <- 10
-nburn <- 10
+nsim <- 100
+nburn <- 100
 total_runs <- nsim + nburn
 
 data <- read.csv("./papers/Chan_Jeliazkov_2009/USdata.csv", header = FALSE)
@@ -44,6 +44,8 @@ y <- ts(data = data,
 #y <- c(log(y)) * 100
 y <- as.matrix(y)
 colnames(y) <- NULL
+y0 <- y[1:3, ]
+y <- y[-c(1:3), ]
 
 Y <- c(t(y))
 
@@ -53,16 +55,14 @@ qq <- nn*(nn+1)
 
 # priors #---------------------------------------------------------------------
 
-
-
 # Omega_11
-nu_1 <- nn + 3 # nn?
-S_1 <- diag(nn)
+nu1 <- nn + 3 # nn?
+S1 <- diag(nn)
 
 # Omega_22
 DD <- 5 * diag(qq)
-nu_2 <- rep(6, qq)
-S_2 <- rep(0.01, qq)
+nu2 <- rep(6, qq)
+S2 <- rep(0.01, qq)
 
 
 # initial values #-------------------------------------------------------------
@@ -90,7 +90,7 @@ S_inv <- bdiag(replicate((TT-1), Omega22_inv, simplify = F))
 S_inv <-  bdiag(DD_inv, S_inv)  
 
 # bigG = X
-G <- bdiag(replicate(qq, matrix(c(1, y[1,]), ncol=nn+1), simplify = F))
+G <- bdiag(replicate(qq, matrix(c(1, y[3:(TT-1),]), ncol=nn+1), simplify = F))
 
 G_list <- vector("list", TT)
 for (i in 1:TT){
@@ -98,8 +98,10 @@ G_list[[i]] <- kronecker(diag(4), matrix(c(1, y[i,]), ncol=nn+1))
 }
 G <- bdiag(G_list)
 
+new_nu2 <- (nu2+(TT-1))/2
+
 # store
-store_beta <- array(NA, dim=c(nsim, qq))
+store_beta <- array(NA, dim=c(nsim, TT*qq))
 store_Omega11 <- array(NA, dim=c(nn, nn, nsim))
 store_Omega22 <- array(NA, dim=c(nsim, qq))
 
@@ -112,7 +114,7 @@ for (ii in 1:total_runs) {
     K <- crossprod(H, S_inv) %*% H
     G_Omega11_inv <- crossprod(G, kronecker(diag(TT), Omega11_inv))
     G_Omega11_inv_G <- G_Omega11_inv %*% G
-    P <- K + G_Omega11_inv_G
+    P <- Matrix::forceSymmetric(K + G_Omega11_inv_G)
     L <- chol(P)
     
     beta_hat <- backsolve(L, forwardsolve(L, G_Omega11_inv  %*% Y, upper.tri = FALSE), upper.tri = TRUE,
@@ -120,35 +122,25 @@ for (ii in 1:total_runs) {
     beta <- beta_hat + solve(L, rnorm(n = length(beta_hat)))
     
 # Omega_11 ----------------------------------------------------------------
-    # v_1^0 & S_1^0 are parameters of the prior
-    # y_t is observed
-    # beta is sampled above
-    # X_t needs to be designed
-    e1 <- matrix(Y-G%*%beta, nrow=nn, ncol = TT)
-    S_IW <- S_1 + tcrossprod(e1) 
-    Omega11 <- 1/rWishart(n = 1, df = nu_1 + TT, Sigma = solve(S_IW, diag(nn)))[,,1]
-    Omega11_inv <- solve(Omega11, diag(nn))
+    e1 <- matrix(Y-G%*%beta, nrow=nn)
+    new_S1 <- S1 + tcrossprod(e1) 
+    Omega11_inv <- rWishart(n = 1, df = nu1 + TT, Sigma =  solve(new_S1, diag(nn)))[,,1]
+    Omega11 <- solve(Omega11, diag(nn))
 
     
 # Omega_22 |---------------------------------------------------------------
-    Beta <- matrix(beta, ncol=qq)
-    beta_D_sq <- colSums(diff(Beta)**2)
-    for(i in seq_along( beta_D_sq)){
-        
-     diag(Omega22)[i] <- 1/rgamma(n=1,
-                 shape = nu_2[i]+TT-1,
-                 scale = 2/(S_2[i]+beta_D_sq[i])
+    e2 <- matrix(H%*%beta, ncol=qq)
+    new_S2 <- (S2 + colSums(e2[-1,]**2))/2
+     diag(Omega22) <- 1/rgamma(n=20,
+                 shape = new_nu2,
+                 scale = 1/new_S2
                      )
-    } 
-    S_inv <- bdiag(replicate((TT-1), Omega22_inv, simplify = F))
-    S_inv <-  bdiag(DD_inv, S_inv)  
-    
     
 # store |------------------------------------------------------------------
     if (ii > nburn) {
         run <- ii - nburn
-        store_beta[run, ] <- beta
-        store_Omega11[ , , run] <- Omega11
+        store_beta[run, ] <- beta@x
+        store_Omega11[ , , run] <- matrix(Omega11@x, nrow=nn)
         store_Omega22[run, ] <- diag(Omega22)
     }
 }
@@ -156,14 +148,11 @@ print(Sys.time() - now)
 
 
 # Results #--------------------------------------------------------------------
-tau_hat <- rowMeans(store_tau)
-theta_hat <- rowMeans(store_theta)
-print(theta_hat)
+beta_hat <- colMeans(store_beta)
+Omega11_hat <- apply(store_Omega11, MARGIN = c(1,2), FUN = mean)
+Omega22_hat <- colMeans(store_Omega22)
 
-cc <- ts(y - tau_hat, start = c(1949, 1), frequency = 4)
+y_hat <- matrix(beta_hat, nrow=qq)
 
 
-timetk::tk_tbl(data = cc, rename_index = "time") %>%
-    rename(c = "Series 1") %>%
-    ggplot2::ggplot(aes(x = time, y = c)) +
-    geom_line()
+

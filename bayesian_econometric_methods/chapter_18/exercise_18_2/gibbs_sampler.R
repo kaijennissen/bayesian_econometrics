@@ -4,7 +4,7 @@
 # Bayesian Econometric Methods (2nd edition).
 # Cambridge: Cambridge University Press.
 #------------------------------------------------------------------------------
-# run time: 94.8 sec
+# run time: 96.6 sec
 
 library(Matrix)
 library(dplyr)
@@ -23,7 +23,7 @@ nburn <- 1000
 total_runs <- nsim + nburn
 
 data <-
-    read.csv("./chapter_18/exercise_18_2/usgdp.csv", header = FALSE)
+    read.csv("./bayesian_econometric_methods/chapter_18/exercise_18_2/usgdp.csv", header = FALSE)
 y <- ts(data = data,
         start = c(1959, 1),
         freq = 4)
@@ -110,16 +110,14 @@ for (ii in 1:total_runs) {
     alpha_tau_tilde[2, 1] <- -gamma[1]
     alpha_tau <- invH_2 %*% alpha_tau_tilde
     K_tau <- HH_phi / sigma2_c + HH_2 / sigma2_tau
-    #L_tau <- chol(K_tau)
     XX_tau <-
         (HH_phi %*% y) / sigma2_c + (HH_2 %*% alpha_tau) / sigma2_tau
-    tau_hat <- solve(K_tau, XX_tau)
-    #Z_tau <- matrix(rnorm(n = TT, mean = 0, sd = 1))
-    #Z_tau <-  as(zrnorm(n = TT), "dgeMatrix")
-    Z_tau <-  zrnorm(n = TT)
-    tau <- tau_hat + solve(chol(K_tau), diag(TT)) %*% zrnorm(n = TT)
+    L <- chol(K_tau)
+    tau_hat <- Matrix(backsolve(L, forwardsolve(L, XX_tau, upper.tri = FALSE, transpose = FALSE), upper.tri = TRUE, transpose = FALSE))
+    tau <- tau_hat + solve(L, zrnorm(n = TT))
     tau <- tau@x
-    
+
+
     
     # draw from conditional for phi #------------------------------------------
     cc <- y - tau
@@ -215,7 +213,6 @@ print(theta_hat)
 # 1.313774069  -0.380283872   0.811751869   0.002302012 747.395159671 746.471692513
 
 cc <- ts(y - tau_hat, start = c(1949, 1), frequency = 4)
-
 
 timetk::tk_tbl(data = cc, rename_index = "time") %>%
     rename(c = "Series 1") %>%

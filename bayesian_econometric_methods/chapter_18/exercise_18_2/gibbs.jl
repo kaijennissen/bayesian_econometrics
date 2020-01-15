@@ -12,14 +12,16 @@ function sparse_transpose(X)
     return Xt
 end
 
-nsim = 10000;
-burnin = 1000;
-function gibbs(nsim, burnin)
+nsim = 100000;
+burnin = 10000;
 
-    data_raw = CSV.read("./bayesian_econometric_methods/chapter_18/exercise_18_2/usgdp.csv", header = 0, ignoreemptylines=true);
-    abc = reshape(Matrix(data_raw), 252);
-    data = 100*log.(abc);
-    y = data;
+data_raw = CSV.read("./bayesian_econometric_methods/chapter_18/exercise_18_2/usgdp.csv", header = 0, ignoreemptylines=true);
+abc = reshape(Matrix(data_raw), 252);
+data = 100*log.(abc);
+y = data;
+
+function gibbs_sampler(y, nsim, burnin)
+
     T = length(y);
 
     # prior
@@ -129,28 +131,23 @@ function gibbs(nsim, burnin)
     tau_hat = mean(store_tau, dims = 1)';
     theta_hat = mean(store_theta, dims=1)';
     println(theta_hat);
+    return store_tau, store_theta
 end
 
 
+store_tau, store_theta  = gibbs_sampler(y, nsim, burnin);
+tau_hat = collect(mean(store_tau, dims = 1)');
+theta_hat = mean(store_theta, dims=1)';
 
-    # # theta_CI = quantile(store_theta,[.025 .975])
-    # # mu_hat = mean(store_mu)';
-    #
-    # #end
-    #
-    #     # ## plot of graphs
-    #     # tt = (1947:.25:2015.75)';
-    #     # figure;
-    #     # hold on
-    #     #     plot(tt,y-tau_hat,'linewidth',1);
-    #     #     plot(tt,zeros(T,1),'--k','linewidth',1);
-    #     # hold off
-    #     # title('Output gap estimates');
-    #     # xlim([1947 2016]); box off;
-    #     # set(gcf,'Position',[100 100 800 300]);
-    #     #
-    #     # figure;
-    #     # plot(tt,mu_hat); xlim([1947 2016]); ylim([1 4.5]); box off;
-    #     # set(gcf,'Position',[100 100 800 300]);
-    #     # title('Trend output growth estimates');
-    #     #
+## plot of graphs
+tt = (1947:.25:2009.75);
+output_gap = reshape(y-tau_hat, 252);
+
+theta_CI = zeros(252,2)
+for i in 1:252
+    theta_CI[i,:] = collect(quantile(store_tau[:,i], (.025, .975)))
+end
+
+output_gap = [y y y] - [theta_CI[:,1] tau_hat theta_CI[:,2]]
+plot(tt, output_gap)
+plot(output_gap[:,2], ribbon=(output_gap[:,2]-output_gap[:,1], output_gap[:,3]-output_gap[:,2]))

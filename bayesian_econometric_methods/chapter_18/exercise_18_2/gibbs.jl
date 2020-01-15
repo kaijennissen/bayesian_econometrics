@@ -16,7 +16,7 @@ nsim = 10000;
 burnin = 1000;
 function gibbs(nsim, burnin)
 
-    data_raw = CSV.read("usgdp.csv", header = 0);
+    data_raw = CSV.read("./bayesian_econometric_methods/chapter_18/exercise_18_2/usgdp.csv", header = 0, ignoreemptylines=true);
     abc = reshape(Matrix(data_raw), 252);
     data = 100*log.(abc);
     y = data;

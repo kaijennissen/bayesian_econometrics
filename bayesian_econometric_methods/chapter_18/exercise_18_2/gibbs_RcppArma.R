@@ -93,7 +93,7 @@ remove_custom_makevars <- function() {
 
 create_custom_makevars()
 sourceCpp(
-    "./chapter_18/exercise_18_2/gibbs_RcppArma.cpp",
+    "./bayesian_econometric_methods/chapter_18/exercise_18_2/gibbs_RcppArma.cpp",
     showOutput = TRUE,
     rebuild = TRUE,
     #dryRun = TRUE,
@@ -106,7 +106,7 @@ nburn <- 1000
 total_runs <- nsim + nburn
 
 data <-
-    read.csv("./chapter_18/exercise_18_2/usgdp.csv", header = FALSE)
+    read.csv("./bayesian_econometric_methods/chapter_18/exercise_18_2/usgdp.csv", header = FALSE)
 y <- ts(data = data,
         start = c(1959, 1),
         freq = 4)

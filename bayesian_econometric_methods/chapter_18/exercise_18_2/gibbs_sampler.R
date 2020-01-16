@@ -9,7 +9,6 @@
 library(Matrix)
 library(dplyr)
 library(ggplot2)
-library(SuppDists)
 library(RcppZiggurat)
 library(Rcpp)
 

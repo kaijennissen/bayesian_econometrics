@@ -21,26 +21,13 @@ RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 # Expose 22 for ssh server. 7777 for gdb server.
 EXPOSE 22 7777
 
-# add user for debugging
-RUN useradd -ms /bin/bash debugger
-RUN echo 'debugger:debugger_pwd' | chpasswd
-
 
 ########################################################
 # Add custom packages and development environment here
 ########################################################
-RUN julia -e 'Pkg.init()' && \
-    julia -e 'Pkg.update()' && \
-    julia -e 'using Pkg; Pkg.add("CSV")' && \
-    julia -e 'using Pkg; Pkg.add("Distributions")' && \
-    julia -e 'using Pkg; Pkg.add("Plots")'
-    julia -e 'Pkg.update()' && \
-    julia -e 'using CSV' && \ 
-    julia -e 'using Distributions' && \ 
-    julia -e 'using LinearAlgebra' && \ 
-    julia -e 'using SparseArrays' && \ 
-    julia -e 'using Random' && \ 
-    
+RUN julia -O3 -e 'using Pkg;Pkg.REPLMode.pkgstr("add CSV   ;precompile");using CSV'
+RUN julia -O3 -e 'using Pkg;Pkg.REPLMode.pkgstr("add https://github.com/JuliaComputing/MKL.jl ;precompile");using CSV'
+
 ########################################################
 
 CMD ["/usr/sbin/sshd", "-D"]

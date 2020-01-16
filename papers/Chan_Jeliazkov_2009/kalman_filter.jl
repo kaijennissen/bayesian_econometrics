@@ -1,11 +1,13 @@
-
 #!/usr/bin/env julia
-using LinearAlgebra;
+using LinearAlgebra
 using CSV
 using SparseArrays
 using Distributions
 using Random
 using Plots
+#using BandedMatrices
+#using Profile
+
 
 function sparse_transpose(X)
     i, j, v_ij = findnz(X)
@@ -13,148 +15,154 @@ function sparse_transpose(X)
     return Xt
 end
 
-nsim = 10000;
-burnin = 1000;
+function SUR(X)
+    r, c = size(X);
+    idi = reshape((kron((1:r), ones(c, 1) )), r*c);
+    idj = collect(1:r*c);
+    X_SUR = sparse(idi, idj, reshape(X',r*c));
+    return X_SUR
+end
 
-data_raw = CSV.read("./bayesian_econometric_methods/papers/Chan_Jeliazkov_2009/USgdp.csv", header = 0, ignoreemptylines=true);
-abc = reshape(Matrix(data_raw), 252);
-data = 100*log.(abc);
-y = data;
+nsim = 10;
+burnin = 10;
+
+data_raw = CSV.read("USdata.csv", header = 0);
+y = Matrix(data_raw);
 
 function gibbs_sampler(y, nsim, burnin)
 
-    T = length(y);
-    n =
+    y0 = y[1:2, :];
+    Y = y[4:end, :];
 
-    # prior
-    a0 = [750.0;750.0];
-    B0 = 100*Diagonal([1,1]);
-    phi0 = [1.3 -.7]';
-    iVphi = Diagonal([1,1]);
+    tt = size(y, 1);
+    nn = size(y, 2);
+    TT = size(Y, 1);
+    qq = nn*(nn+1);
+    TTqq = TT*qq;
 
-    nu_sigc2 = 3.0;
-    S_sigc2 = 2.;
-    sigtau2_ub = .01;
+    Y = reshape(Y',:,1);
+
+    # priors #-----------------------------------------------------------------
+    # Omega_11
+    nu01 = nn + 3. # nn?
+    S01 = I(nn)
+
+    # Omega_22
+    DD = 5 * I(qq);
+    DD_inv = inv(DD);
+    nu02 = 6 * ones(qq);
+    S02 = 0.01 * ones(qq);
+
+    # initial values #---------------------------------------------------------
+    new_nu01 = nu01 + TT;
+    new_nu02 = broadcast(+ , nu02/2, (TT-1)/2)[:];
+
+    # Omega11
+    Omega11 = cov(y);
+    Omega11_inv = inv(Omega11);
+
+    # H
+    H1 = I(TTqq);
+    H2 = [[zeros(qq, TTqq-qq); I(TTqq-qq)] zeros(TTqq, qq)];
+    H = H1 - H2;
+    HT = sparse_transpose(H)
+
+    # S
+    Omega22 = 0.01*I(qq);
+    Omega22_inv = inv(Omega22);
+    S = kron(I(TT), Omega22);
+    S[1:qq,1:qq] = DD;
+
+    S_inv = kron(I(TT), Omega22_inv);
+    S_inv[1:qq,1:qq] = DD_inv;
+
+    # G
+    G = SUR([ones(TT*nn,1) kron(y[3:end-1, :], ones(nn))]);
+    GT = sparse_transpose(G);
 
     # initialize for storeage
-    store_theta = zeros(nsim,6); # [phi, sigc2, sigtau2, tau0]
-    store_tau = zeros(nsim,T);
-    store_mu = zeros(nsim,T);    # annualized trend growth
-
-    # initialize the Markov chain
-    phi = [1.34 -.7]';
-    tau0 = [y[1] y[1]]'; # [tau_{0}, tau_{-1}]
-    sigc2 = .5;
-    sigtau2 = .001;
-
-    # construct a few things
-    sparse_diag = sparse(Matrix(1I,T,T))
-    sparse_subdiag_1 = sparse(collect(2:T),collect(1:(T-1)),ones(T-1), T, T)
-    sparse_subdiag_2 = sparse(collect(3:T),collect(1:(T-2)),ones(T-2), T, T)
-
-    H2 = sparse_diag - 2*sparse_subdiag_1 + sparse_subdiag_2;
-    HH2 = H2'*H2;
-
-    Hphi = sparse_diag - phi[1]*sparse_subdiag_1 - phi[2]*sparse_subdiag_2;
-    HHphi = Hphi'*Hphi;
-
-    Xtau0 = [collect(2:T+1) -collect(1:T)];
-    n_grid = 500;
-    count_phi = 0;
-
-
-
-    function f_tau(x, T, del_tau)
-         return (-T/2*log.(x) - sum((del_tau[2:T] - del_tau[1:T-1]).^2)./(2*x));
-    end
+    store_beta = zeros(nsim, TTqq);
+    store_Omega11 = zeros(nn, nn,  nsim);
+    store_Omega22 = zeros(nsim, qq);
 
     for isim in 1:nsim+burnin
-        # sample taup
-        alp_tau = H2 \ [2*tau0[1]-tau0[2];-tau0[1];spzeros(T-2)];
-        Ktau = HH2 / sigtau2 + HHphi / sigc2;
-        #Ktau = Symmetric(Ktau);
-        tau_hat = Ktau \ (HH2 * alp_tau / sigtau2 + HHphi * y / sigc2);
-        Ctau = cholesky(Ktau);
-        Ltau=sparse(Ctau.L);
-        nrows_tau=size(Ctau)[1]
-        Ptau=sparse(1:nrows_tau,Ctau.p,ones(nrows_tau));
-        LtPtau = Ltau'*Ptau;
-        tau = tau_hat + LtPtau \ rand(Normal(),T);
+
+        S_inv = kron(sparse(I,TT,TT), Omega22_inv);
+        S_inv[1:qq,1:qq] = DD_inv;
+        K = HT * S_inv * H;
+
+        #GT_Omega11_inv = GT * kron(sparse(I, TT, TT), Omega11_inv);
+        GGL = tril(GT * kron(sparse(I, TT, TT), Omega11_inv) * G);
+        GT_Omega11_inv_G = GGL + sparse_transpose(GGL) - Diagonal(GGL);
+        GT_Omega11_inv_Y = GT * (kron(sparse(I, TT, TT), Omega11_inv) * Y);
+        P = K + GT_Omega11_inv_G;
+
+        # cholesky 1
+        C = cholesky(P, perm=1:TTqq);
+        L = sparse(C.L);
+        #L * L' ≈ P;
+
+        # Ctau = cholesky(P);
+        # Ltau = sparse(Ctau.L);
+        # #nrows_tau = size(Ctau, 1);
+        # Ptau = sparse(1:TTqq, Ctau.p, ones(TTqq));
+        # LtPtau = Ltau' * Ptau;
+        # LtPtauT = sparse_transpose(LtPtau);
+
+        # cholesky 3
+        # C = cholesky(Matrix(P));
+        # L = C.L;
+        # L*L' ≈  Matrix(P);
 
 
-        # sample phi
-        c = y - tau;
-        Xphi = [[0;c[1:T-1]] [0;0;c[1:T-2]]];
-        XXphi = Xphi' * Xphi;
-        Kphi = iVphi + XXphi / sigc2;
-        phi_hat = Kphi \ (iVphi * phi0 + Xphi' * c / sigc2);
-        Cphi = cholesky(Kphi);
-        # Lphi=sparse(Ctau.L);
-        # nrows_phi=size(Cphi)[1]
-        # Pphi=sparse(1:nrows_phi,Cphi.p,ones(nrows_phi));
-        # LtPphi = Lphi'*Pphi;
-        phic = phi_hat + Cphi \ rand(Normal(),2);
-        if sum(phic) < .99 && phic[2] - phic[1] < .99 && phic[2] > -.99
-            phi = phic;
-            Hphi = sparse_diag - phi[1]*sparse_subdiag_1 - phi[2]*sparse_subdiag_2;
-            HHphi = Hphi'*Hphi;
-            count_phi = count_phi + 1;
+        # beta
+        # fwd = fwdTriSolve(LtPtau, GT_Omega11_inv_Y);
+        # bwd = bwdTriSolve(LtPtauT, fwd);
+
+        beta_hat = L'\(L\GT_Omega11_inv_Y);
+        beta = beta_hat + L' \ rand(Normal(),TTqq);
+
+        # Omega11
+        e1 = reshape(Y - G * beta, nn,:);
+        new_S01 = S01 + e1*e1';
+        Omega11 = rand(InverseWishart(new_nu01, new_S01));
+        Omega11_inv = sparse(Symmetric(Omega11\I(nn)));
+
+        # Omega22
+        e2 = reshape(H * beta, qq, TT)';
+        new_S02 = (S02 + sum(e2[2:end,:].^2, dims=1)[:])/2;
+        for i in 1:qq
+            Omega22[i,i] = rand(InverseGamma(new_nu02[i], new_S02[i]));
         end
+        Omega22_inv = Omega22\I(qq);
 
-        # # sample sigc2
-        G = Gamma(nu_sigc2 + T/2, 1/(S_sigc2 + .5*(c'*HHphi*c)[1]));
-        sigc2 = 1 / rand(G);
-
-        # sample sigtau2
-        del_tau = [tau0[1];tau[1:T]] - [tau0[2];tau0[1];tau[1:T-1]];
-        sigtau2_grid = collect(LinRange(rand(Uniform())/1000,sigtau2_ub-rand(Uniform())/1000,n_grid));
-        lp_sigtau2 = f_tau(sigtau2_grid, T, del_tau);
-        p_sigtau2 = exp.(lp_sigtau2 .- maximum(lp_sigtau2));
-        p_sigtau2 = p_sigtau2/sum(p_sigtau2);
-        cdf_sigtau2 = cumsum(p_sigtau2);
-        sigtau2 = sigtau2_grid[rand(Uniform()).<cdf_sigtau2][1];
-
-
-        # sample tau0
-        Ktau0 = B0\Matrix(I,2 , 2) + Xtau0' * HH2 * Xtau0 / sigtau2;
-        tau0_hat = Ktau0 \ (B0 \ a0 + Xtau0' * HH2 * tau / sigtau2);
-        Ctau0 = cholesky(Ktau0);
-        tau0 = tau0_hat + Ctau0.U \ randn(2);
-
-
+        # store
         if isim > burnin
             i = isim - burnin;
-            store_tau[i,:] = tau;
-            store_theta[i,:] = [phi' sigc2 sigtau2 tau0'];
-            #store_mu[i,:] = 4*(tau-[tau0[1[];tau[1:end-1[]])';
+            store_beta[i,:] = beta;
+            store_Omega11[:,:, i] = Omega11;
+            store_Omega22[i,:] = diag(Omega22);
         end
     end
 
-    tau_hat = mean(store_tau, dims = 1)';
-    theta_hat = mean(store_theta, dims=1)';
-    println(theta_hat);
+    return store_beta, store_Omega11, store_Omega22
 end
 
+@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 100, 100);
+@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 20000, 5000);
+
+beta_hat = mean(store_beta, dims = 1)';
+Omega11_hat = mean(store_Omega11, dims = 3)[:,:,1];
+Omega22_hat = mean(store_Omega22, dims = 1)';
+
+beta = reshape(beta_hat, 4, 5, :);
+
+l = @layout [a b ; c d]
+p1 = plot(1:245, beta[1,:,:]')
+p2 = plot(1:245, beta[2,:,:]')
+p3 = plot(1:245, beta[3,:,:]')
+p4 = plot(1:245, beta[4,:,:]')
+plot(p1, p2, p3, p4, layout = l)
 
 
-    # # theta_CI = quantile(store_theta,[.025 .975])
-    # # mu_hat = mean(store_mu)';
-    #
-    # #end
-    #
-    #     # ## plot of graphs
-    #     # tt = (1947:.25:2015.75)';
-    #     # figure;
-    #     # hold on
-    #     #     plot(tt,y-tau_hat,'linewidth',1);
-    #     #     plot(tt,zeros(T,1),'--k','linewidth',1);
-    #     # hold off
-    #     # title('Output gap estimates');
-    #     # xlim([1947 2016]); box off;
-    #     # set(gcf,'Position',[100 100 800 300]);
-    #     #
-    #     # figure;
-    #     # plot(tt,mu_hat); xlim([1947 2016]); ylim([1 4.5]); box off;
-    #     # set(gcf,'Position',[100 100 800 300]);
-    #     # title('Trend output growth estimates');
-    #     #
+savefig( "fg")

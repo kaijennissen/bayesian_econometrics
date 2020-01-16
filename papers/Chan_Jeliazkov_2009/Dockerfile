@@ -27,6 +27,8 @@ EXPOSE 22 7777
 ########################################################
 RUN julia -O3 -e 'using Pkg;Pkg.REPLMode.pkgstr("add CSV   ;precompile");using CSV'
 RUN julia -O3 -e 'using Pkg;Pkg.REPLMode.pkgstr("add https://github.com/JuliaComputing/MKL.jl ;precompile");using CSV'
+RUN julia -O3 -e 'using Pkg;Pkg.REPLMode.pkgstr("add Distributions   ;precompile");using CSV'
+RUN julia -O3 -e 'using Pkg;Pkg.REPLMode.pkgstr("add Plots   ;precompile");using CSV'
 
 ########################################################
 

@@ -148,8 +148,9 @@ function gibbs_sampler(y, nsim, burnin)
     return store_beta, store_Omega11, store_Omega22
 end
 
+# run first with a small number for compiltaion
 @time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 100, 100);
-@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 20000, 5000);
+@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 50000, 5000);2.54/200
 
 beta_hat = mean(store_beta, dims = 1)';
 Omega11_hat = mean(store_Omega11, dims = 3)[:,:,1];
@@ -158,10 +159,10 @@ Omega22_hat = mean(store_Omega22, dims = 1)';
 beta = reshape(beta_hat, 4, 5, :);
 
 l = @layout [a b ; c d]
-p1 = plot(1:245, beta[1,:,:]')
-p2 = plot(1:245, beta[2,:,:]')
-p3 = plot(1:245, beta[3,:,:]')
-p4 = plot(1:245, beta[4,:,:]')
+p1 = plot(1:245, beta[1,:,:]', legend=false)
+p2 = plot(1:245, beta[2,:,:]', legend=false)
+p3 = plot(1:245, beta[3,:,:]', legend=false)
+p4 = plot(1:245, beta[4,:,:]', legend=false)
 plot(p1, p2, p3, p4, layout = l)
 
 

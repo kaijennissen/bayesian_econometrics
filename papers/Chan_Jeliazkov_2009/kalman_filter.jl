@@ -1,13 +1,18 @@
-#!/usr/bin/env julia
+#! usr/bin/julia
+#------------------------------------------------------------------------------
+# Julia Code for a fast Kalman Filter based on
+# Chan, J.C.C. and Jeliazkov, I. (2009). Efficient Simulation and
+# Integrated Likelihood Estimation in State Space Models,
+# International Journal of Mathematical Modelling and Numerical
+# Optimisation, 1, 101-120.
+#------------------------------------------------------------------------------
+
 using LinearAlgebra
 using CSV
 using SparseArrays
 using Distributions
 using Random
 using Plots
-#using BandedMatrices
-#using Profile
-
 
 function sparse_transpose(X)
     i, j, v_ij = findnz(X)

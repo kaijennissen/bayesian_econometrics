@@ -14,6 +14,8 @@ using Distributions
 using Random
 using Plots
 
+
+# 1) TVP-VAR
 function sparse_transpose(X)
     i, j, v_ij = findnz(X)
     Xt = sparse(j, i, v_ij)
@@ -96,34 +98,13 @@ function gibbs_sampler(y, nsim, burnin)
         S_inv[1:qq,1:qq] = DD_inv;
         K = HT * S_inv * H;
 
-        #GT_Omega11_inv = GT * kron(sparse(I, TT, TT), Omega11_inv);
         GGL = tril(GT * kron(sparse(I, TT, TT), Omega11_inv) * G);
         GT_Omega11_inv_G = GGL + sparse_transpose(GGL) - Diagonal(GGL);
         GT_Omega11_inv_Y = GT * (kron(sparse(I, TT, TT), Omega11_inv) * Y);
         P = K + GT_Omega11_inv_G;
 
-        # cholesky 1
         C = cholesky(P, perm=1:TTqq);
         L = sparse(C.L);
-        #L * L' ≈ P;
-
-        # Ctau = cholesky(P);
-        # Ltau = sparse(Ctau.L);
-        # #nrows_tau = size(Ctau, 1);
-        # Ptau = sparse(1:TTqq, Ctau.p, ones(TTqq));
-        # LtPtau = Ltau' * Ptau;
-        # LtPtauT = sparse_transpose(LtPtau);
-
-        # cholesky 3
-        # C = cholesky(Matrix(P));
-        # L = C.L;
-        # L*L' ≈  Matrix(P);
-
-
-        # beta
-        # fwd = fwdTriSolve(LtPtau, GT_Omega11_inv_Y);
-        # bwd = bwdTriSolve(LtPtauT, fwd);
-
         beta_hat = L'\(L\GT_Omega11_inv_Y);
         beta = beta_hat + L' \ rand(Normal(),TTqq);
 
@@ -172,3 +153,5 @@ plot(p1, p2, p3, p4, layout = l)
 
 
 savefig( "fg")
+
+# 2) Dynamic Factor Model

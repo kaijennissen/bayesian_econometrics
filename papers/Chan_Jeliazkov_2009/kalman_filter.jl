@@ -141,8 +141,8 @@ beta = reshape(beta_hat, 4, 5, :);
 l = @layout [a b ; c d];
 p1 = plot(1:245, beta[1,:,:]', legend=false);
 p2 = plot(1:245, beta[2,:,:]', legend=false);
-p3 = plot(1:245, beta[3,:,:]', legend=false):
-p4 = plot(1:245, beta[4,:,:]', legend=false):
+p3 = plot(1:245, beta[3,:,:]', legend=false);
+p4 = plot(1:245, beta[4,:,:]', legend=false);
 plot(p1, p2, p3, p4, layout = l)
 
 

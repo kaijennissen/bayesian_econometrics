@@ -29,7 +29,7 @@ rm(list = ls())
 set.seed(123)
 
 nsim <- 100
-nburn <- 100
+nburn <- 0
 total_runs <- nsim + nburn
 
 data <- read.csv("./papers/Chan_Jeliazkov_2009/USdata.csv", header = FALSE)
@@ -50,7 +50,7 @@ tt <- nrow(y)
 nn <- ncol(y)
 TT <- nrow(Y)/nn
 qq <- nn*(nn+1)
-
+TTqq <- TT*qq
 # priors #---------------------------------------------------------------------
 
 # Omega_11
@@ -72,7 +72,7 @@ Omega11_inv <- Matrix(solve(Omega11, diag(ncol(Omega11))))
 # H
 diags_H <- list(rep(1, TT*qq), rep(-1, (TT - 1)*qq))
 H <- bandSparse(n = TT*qq,
-               k = c(0, -qq),
+               k = c(0, -(qq+1)),
                diag = diags_H,
                symm = FALSE
                )
@@ -102,13 +102,13 @@ new_nu2 <- (nu2+(TT-1))/2
 store_beta <- array(NA, dim=c(nsim, TT*qq))
 store_Omega11 <- array(NA, dim=c(nn, nn, nsim))
 store_Omega22 <- array(NA, dim=c(nsim, qq))
-
+now <- Sys.time()
 # Gibbs Sampler -----------------------------------------------------------
 for (ii in 1:total_runs) {
-    now <- Sys.time()
+
 # beta --------------------------------------------------------------------
-    S_inv <- bdiag(replicate((TT-1), Omega22_inv, simplify = F))
-    S_inv <-  bdiag(DD_inv, S_inv)  
+    S_inv <- kronecker(Diagonal(TT), Omega22_inv)
+    S_inv[1:qq, 1:qq] <- DD_inv 
     K <- Matrix::forceSymmetric(crossprod(H, S_inv) %*% H)
     G_Omega11_inv <- crossprod(G, kronecker(diag(TT), Omega11_inv))
     G_Omega11_inv_G <-  Matrix::forceSymmetric(G_Omega11_inv %*% G)
@@ -125,13 +125,13 @@ for (ii in 1:total_runs) {
     Omega11 <- solve(Omega11, diag(nn))
 
 # Omega_22 |---------------------------------------------------------------
-    e2 <- matrix(H%*%beta, ncol=qq)
+    e2 <- matrix(H %*% beta, ncol=qq)
     new_S2 <- (S2 + colSums(e2[-1,]**2))/2
     diag(Omega22) <- 1/rgamma(n=20,
                  shape = new_nu2,
                  scale = 1/new_S2
                      )
-    print(Sys.time() - now)
+
 # store |------------------------------------------------------------------
     if (ii > nburn) {
         run <- ii - nburn
@@ -140,7 +140,7 @@ for (ii in 1:total_runs) {
         store_Omega22[run, ] <- diag(Omega22)
     }
 }
-
+print(Sys.time() - now)
 
 
 # Results #--------------------------------------------------------------------

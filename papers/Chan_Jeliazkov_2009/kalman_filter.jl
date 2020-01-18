@@ -1,4 +1,3 @@
-#! usr/bin/julia
 #------------------------------------------------------------------------------
 # Julia Code for a fast Kalman Filter based on
 # Chan, J.C.C. and Jeliazkov, I. (2009). Efficient Simulation and
@@ -6,14 +5,12 @@
 # International Journal of Mathematical Modelling and Numerical
 # Optimisation, 1, 101-120.
 #------------------------------------------------------------------------------
-
 using LinearAlgebra
 using CSV
 using SparseArrays
 using Distributions
 using Random
 using Plots
-
 
 # 1) TVP-VAR
 function sparse_transpose(X)
@@ -29,9 +26,6 @@ function SUR(X)
     X_SUR = sparse(idi, idj, reshape(X',r*c));
     return X_SUR
 end
-
-nsim = 10;
-burnin = 10;
 
 data_raw = CSV.read("USdata.csv", header = 0);
 y = Matrix(data_raw);
@@ -55,9 +49,9 @@ function gibbs_sampler(y, nsim, burnin)
     S01 = I(nn)
 
     # Omega_22
-    DD = 5 * I(qq);
-    DD_inv = inv(DD);
-    nu02 = 6 * ones(qq);
+    DD = 5. * sparse(I,qq,qq);
+    DD_inv = 1.0/5 * sparse(I,qq,qq);
+    nu02 = 6. * ones(qq);
     S02 = 0.01 * ones(qq);
 
     # initial values #---------------------------------------------------------
@@ -75,25 +69,23 @@ function gibbs_sampler(y, nsim, burnin)
     HT = sparse_transpose(H)
 
     # S
-    Omega22 = 0.01*I(qq);
-    Omega22_inv = inv(Omega22);
-    S = kron(I(TT), Omega22);
-    S[1:qq,1:qq] = DD;
-
-    S_inv = kron(I(TT), Omega22_inv);
-    S_inv[1:qq,1:qq] = DD_inv;
+    Omega22 = 0.01 * sparse(I, qq, qq);
+    Omega22_inv = 10.0 * sparse(I, qq, qq);
+    S = blockdiag(DD, kron(sparse(I,TT-1,TT-1), Omega22));
+    S_inv = blockdiag(DD_inv, kron(sparse(I,TT-1,TT-1), Omega22_inv));
 
     # G
     G = SUR([ones(TT*nn,1) kron(y[3:end-1, :], ones(nn))]);
     GT = sparse_transpose(G);
 
     # initialize for storeage
-    store_beta = zeros(nsim, TTqq);
+    store_beta = zeros(TTqq, nsim);
     store_Omega11 = zeros(nn, nn,  nsim);
-    store_Omega22 = zeros(nsim, qq);
+    store_Omega22 = zeros(qq, nsim);
 
     for isim in 1:nsim+burnin
 
+        #S_inv = blockdiag(DD_inv, kron(sparse(I,TT-1,TT-1), Omega22_inv));
         S_inv = kron(sparse(I,TT,TT), Omega22_inv);
         S_inv[1:qq,1:qq] = DD_inv;
         K = HT * S_inv * H;
@@ -113,6 +105,8 @@ function gibbs_sampler(y, nsim, burnin)
         new_S01 = S01 + e1*e1';
         Omega11 = rand(InverseWishart(new_nu01, new_S01));
         Omega11_inv = sparse(Symmetric(Omega11\I(nn)));
+        # Omega11_inv = triu(Omega11\I(nn));
+        # Omega11_inv = (Omega11_inv + Omega11_inv') * sparse(.5I, nn, nn);
 
         # Omega22
         e2 = reshape(H * beta, qq, TT)';
@@ -120,38 +114,38 @@ function gibbs_sampler(y, nsim, burnin)
         for i in 1:qq
             Omega22[i,i] = rand(InverseGamma(new_nu02[i], new_S02[i]));
         end
-        Omega22_inv = Omega22\I(qq);
+        Omega22_inv = Omega22\sparse(I,qq,qq);
 
         # store
         if isim > burnin
             i = isim - burnin;
-            store_beta[i,:] = beta;
+            store_beta[:, i] = beta;
             store_Omega11[:,:, i] = Omega11;
-            store_Omega22[i,:] = diag(Omega22);
+            store_Omega22[:, i] = diag(Omega22);
         end
     end
 
     return store_beta, store_Omega11, store_Omega22
 end
 
-# run first with a small number for compiltaion
-@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 100, 100);
-@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 50000, 5000);2.54/200
+# run first with a small number for compilation
+@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 500, 500);
+@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 50000, 5000);
 
-beta_hat = mean(store_beta, dims = 1)';
+beta_hat = mean(store_beta, dims = 2)';
 Omega11_hat = mean(store_Omega11, dims = 3)[:,:,1];
-Omega22_hat = mean(store_Omega22, dims = 1)';
+Omega22_hat = mean(store_Omega22, dims = 2)';
 
 beta = reshape(beta_hat, 4, 5, :);
 
-l = @layout [a b ; c d]
-p1 = plot(1:245, beta[1,:,:]', legend=false)
-p2 = plot(1:245, beta[2,:,:]', legend=false)
-p3 = plot(1:245, beta[3,:,:]', legend=false)
-p4 = plot(1:245, beta[4,:,:]', legend=false)
+l = @layout [a b ; c d];
+p1 = plot(1:245, beta[1,:,:]', legend=false);
+p2 = plot(1:245, beta[2,:,:]', legend=false);
+p3 = plot(1:245, beta[3,:,:]', legend=false):
+p4 = plot(1:245, beta[4,:,:]', legend=false):
 plot(p1, p2, p3, p4, layout = l)
 
 
-savefig( "fg")
+savefig( "fg1")
 
 # 2) Dynamic Factor Model

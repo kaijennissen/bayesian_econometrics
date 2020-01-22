@@ -1,10 +1,32 @@
 FROM julia:1.3.1-buster
 
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-    apt-utils gcc g++ openssh-server cmake build-essential gdb \
-        gdbserver rsync vim locales
-RUN apt-get install -y bzip2 wget gnupg dirmngr apt-transport-https \
-    ca-certificates openssh-server tmux && \
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y \
+    apt-utils \
+    gcc \
+    g++ \
+    openssh-server \
+    cmake \
+    build-essential \
+    gdb \
+    gdbserver \
+    rsync \
+    vim \
+    locales
+
+RUN apt-get install -y \
+    bzip2 \
+    wget \
+    gnupg \
+    dirmngr \
+    apt-transport-https \
+    ca-certificates \
+    openssh-server \
+    tmux \
+    fortune \
+    cowsay \
+    figlet && \
         apt-get clean
 
 #setup ssh
@@ -31,6 +53,9 @@ RUN julia -O3 -e 'using Pkg;Pkg.REPLMode.pkgstr("add Distributions   ;precompile
 RUN julia -O3 -e 'using Pkg;Pkg.REPLMode.pkgstr("add Plots   ;precompile");using CSV'
 
 ########################################################
+COPY startup.sh / 
 
-CMD ["/usr/sbin/sshd", "-D"]
+ENV PATH $PATH:/usr/games
+
+CMD ["/bin/sh", "startup.sh"]
 

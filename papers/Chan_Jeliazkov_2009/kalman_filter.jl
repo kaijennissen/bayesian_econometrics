@@ -27,9 +27,6 @@ function SUR(X)
     return X_SUR
 end
 
-data_raw = CSV.read("USdata.csv", header = 0);
-y = Matrix(data_raw);
-
 function gibbs_sampler(y, nsim, burnin)
 
     y0 = y[1:2, :];
@@ -128,9 +125,13 @@ function gibbs_sampler(y, nsim, burnin)
     return store_beta, store_Omega11, store_Omega22
 end
 
-# run first with a small number for compilation
+# Kalman Filter
+data_raw = CSV.read("USdata.csv", header = 0);
+y = Matrix(data_raw);
+
+@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 10, 10);
 @time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 500, 500);
-@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 50000, 5000);
+#@time store_beta, store_Omega11, store_Omega22  = gibbs_sampler(y, 50000, 5000);
 
 beta_hat = mean(store_beta, dims = 2)';
 Omega11_hat = mean(store_Omega11, dims = 3)[:,:,1];

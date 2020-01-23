@@ -13,9 +13,18 @@ using Random
 using Plots
 
 # 1) TVP-VAR
-function sparse_transpose(X)
-    i, j, v_ij = findnz(X)
-    Xt = sparse(j, i, v_ij)
+function sparse_transpose(X::SparseMatrixCSC{Float64,Int64})
+    i, j, v_ij = findnz(X);
+    Xt = sparse(j, i, v_ij);
+    return Xt
+end
+
+function sparse_diagonal(X::SparseMatrixCSC{Float64,Int64})
+    i, j, v_ij = findnz(X);
+    diag_elem = i.==j;
+    new_i = i[diag_elem];
+    new_v_ij = v_ij[diag_elem]
+    Xt = sparse(new_i, new_i, new_v_ij);
     return Xt
 end
 
@@ -27,27 +36,27 @@ function SUR(X)
     return X_SUR
 end
 
-function gibbs_sampler(y, nsim, burnin)
+function gibbs_sampler(y::AbstractArray{Float64, 2}, nsim::Int64, burnin::Int64)
 
     y0 = y[1:2, :];
     Y = y[4:end, :];
 
-    tt = size(y, 1);
-    nn = size(y, 2);
-    TT = size(Y, 1);
-    qq = nn*(nn+1);
-    TTqq = TT*qq;
+    tt = size(y, 1)::Int64;
+    nn = size(y, 2)::Int64;
+    TT = size(Y, 1)::Int64;
+    qq = nn*(nn+1)::Int64;
+    TTqq = TT*qq::Int64;
 
     Y = reshape(Y',:,1);
 
     # priors #-----------------------------------------------------------------
     # Omega_11
-    nu01 = nn + 3. # nn?
-    S01 = I(nn)
+    nu01 = nn + 3.::Float64
+    S01 = 1.0I(nn)
 
     # Omega_22
-    DD = 5. * sparse(I,qq,qq);
-    DD_inv = 1.0/5 * sparse(I,qq,qq);
+    DD = 5. * sparse(1.0I,qq,qq)::SparseMatrixCSC{Float64,Int64};
+    DD_inv = 1.0/5 * sparse(1.0I,qq,qq)::SparseMatrixCSC{Float64,Int64};
     nu02 = 6. * ones(qq);
     S02 = 0.01 * ones(qq);
 
@@ -60,16 +69,16 @@ function gibbs_sampler(y, nsim, burnin)
     Omega11_inv = inv(Omega11);
 
     # H
-    H1 = I(TTqq);
-    H2 = [[zeros(qq, TTqq-qq); I(TTqq-qq)] zeros(TTqq, qq)];
-    H = H1 - H2;
-    HT = sparse_transpose(H)
+    H1 = sparse(1.0I, TTqq, TTqq)::SparseMatrixCSC{Float64,Int64};
+    H2 = [[zeros(qq, TTqq-qq); sparse(1.0I, TTqq-qq, TTqq-qq)] zeros(TTqq, qq)]::SparseMatrixCSC{Float64,Int64};
+    H = (H1 - H2)::SparseMatrixCSC{Float64,Int64};
+    HT = sparse_transpose(H)::SparseMatrixCSC{Float64,Int64};
 
     # S
-    Omega22 = 0.01 * sparse(I, qq, qq);
-    Omega22_inv = 10.0 * sparse(I, qq, qq);
-    S = blockdiag(DD, kron(sparse(I,TT-1,TT-1), Omega22));
-    S_inv = blockdiag(DD_inv, kron(sparse(I,TT-1,TT-1), Omega22_inv));
+    Omega22 = 0.01 * sparse(1.0I, qq, qq)::SparseMatrixCSC{Float64,Int64};
+    Omega22_inv = 10.0 * sparse(1.0I, qq, qq)::SparseMatrixCSC{Float64,Int64};
+    S = blockdiag(DD, kron(sparse(1.0I,TT-1,TT-1), Omega22))::SparseMatrixCSC{Float64,Int64};
+    S_inv = blockdiag(DD_inv, kron(sparse(1.0I,TT-1,TT-1), Omega22_inv))::SparseMatrixCSC{Float64,Int64};
 
     # G
     G = SUR([ones(TT*nn,1) kron(y[3:end-1, :], ones(nn))]);
@@ -83,27 +92,26 @@ function gibbs_sampler(y, nsim, burnin)
     for isim in 1:nsim+burnin
 
         #S_inv = blockdiag(DD_inv, kron(sparse(I,TT-1,TT-1), Omega22_inv));
-        S_inv = kron(sparse(I,TT,TT), Omega22_inv);
-        S_inv[1:qq,1:qq] = DD_inv;
-        K = HT * S_inv * H;
+        S_inv = kron(sparse(1.0I,TT,TT), Omega22_inv)::SparseMatrixCSC{Float64,Int64};
+        S_inv[1:qq,1:qq] = DD_inv::SparseMatrixCSC{Float64,Int64};
+        K = HT * S_inv * H::SparseMatrixCSC{Float64,Int64};
 
-        GGL = tril(GT * kron(sparse(I, TT, TT), Omega11_inv) * G);
-        GT_Omega11_inv_G = GGL + sparse_transpose(GGL) - Diagonal(GGL);
-        GT_Omega11_inv_Y = GT * (kron(sparse(I, TT, TT), Omega11_inv) * Y);
-        P = K + GT_Omega11_inv_G;
+        GGL = tril(GT * kron(sparse(1.0I, TT, TT), Omega11_inv) * G)::SparseMatrixCSC{Float64,Int64};
+        GT_Omega11_inv_G = (GGL + sparse_transpose(GGL) - sparse_diagonal(GGL))::SparseMatrixCSC{Float64,Int64};
+        GT_Omega11_inv_Y = (GT * (kron(sparse(1.0I, TT, TT), Omega11_inv) * Y))::Array{Float64,2};
+
+        P = K + GT_Omega11_inv_G::SparseMatrixCSC{Float64,Int64};
 
         C = cholesky(P, perm=1:TTqq);
-        L = sparse(C.L);
-        beta_hat = L'\(L\GT_Omega11_inv_Y);
-        beta = beta_hat + L' \ rand(Normal(),TTqq);
+        L = sparse(C.L)::SparseMatrixCSC{Float64,Int64};
+        beta_hat = L'\(L\GT_Omega11_inv_Y)::Array{Float64,2};
+        beta = (beta_hat + L' \ rand(Normal(),TTqq))::Array{Float64,2};
 
         # Omega11
         e1 = reshape(Y - G * beta, nn,:);
         new_S01 = S01 + e1*e1';
         Omega11 = rand(InverseWishart(new_nu01, new_S01));
         Omega11_inv = sparse(Symmetric(Omega11\I(nn)));
-        # Omega11_inv = triu(Omega11\I(nn));
-        # Omega11_inv = (Omega11_inv + Omega11_inv') * sparse(.5I, nn, nn);
 
         # Omega22
         e2 = reshape(H * beta, qq, TT)';
@@ -111,7 +119,7 @@ function gibbs_sampler(y, nsim, burnin)
         for i in 1:qq
             Omega22[i,i] = rand(InverseGamma(new_nu02[i], new_S02[i]));
         end
-        Omega22_inv = Omega22\sparse(I,qq,qq);
+        Omega22_inv = Omega22\sparse(1.0I,qq,qq);
 
         # store
         if isim > burnin
@@ -145,7 +153,6 @@ p2 = plot(1:245, beta[2,:,:]', legend=false);
 p3 = plot(1:245, beta[3,:,:]', legend=false);
 p4 = plot(1:245, beta[4,:,:]', legend=false);
 plot(p1, p2, p3, p4, layout = l)
-
 
 savefig( "fg1")
 

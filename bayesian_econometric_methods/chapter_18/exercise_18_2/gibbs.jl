@@ -6,19 +6,20 @@ using Distributions
 using Random
 using Plots
 
-function sparse_transpose(X)
-    i, j, v_ij = findnz(X)
-    Xt = sparse(j, i, v_ij)
+function sparse_transpose(X::SparseMatrixCSC{Float64,Int64})
+    i, j, v_ij = findnz(X);
+    Xt = sparse(j, i, v_ij);
     return Xt
 end
 
-nsim = 100000;
-burnin = 10000;
-
-data_raw = CSV.read("./bayesian_econometric_methods/chapter_18/exercise_18_2/usgdp.csv", header = 0, ignoreemptylines=true);
-abc = reshape(Matrix(data_raw), 252);
-data = 100*log.(abc);
-y = data;
+function sparse_diagonal(X::SparseMatrixCSC{Float64,Int64})
+    i, j, v_ij = findnz(X);
+    diag_elem = i.==j;
+    new_i = i[diag_elem];
+    new_v_ij = v_ij[diag_elem]
+    Xt = sparse(new_i, new_i, new_v_ij);
+    return Xt
+end
 
 function gibbs_sampler(y, nsim, burnin)
 
@@ -46,7 +47,7 @@ function gibbs_sampler(y, nsim, burnin)
     sigtau2 = .001;
 
     # construct a few things
-    sparse_diag = sparse(Matrix(1I,T,T))
+    sparse_diag = sparse(1.0I, T, T)
     sparse_subdiag_1 = sparse(collect(2:T),collect(1:(T-1)),ones(T-1), T, T)
     sparse_subdiag_2 = sparse(collect(3:T),collect(1:(T-2)),ones(T-2), T, T)
 
@@ -60,8 +61,6 @@ function gibbs_sampler(y, nsim, burnin)
     n_grid = 500;
     count_phi = 0;
 
-
-
     function f_tau(x, T, del_tau)
          return (-T/2*log.(x) - sum((del_tau[2:T] - del_tau[1:T-1]).^2)./(2*x));
     end
@@ -69,16 +68,13 @@ function gibbs_sampler(y, nsim, burnin)
     for isim in 1:nsim+burnin
         # sample taup
         alp_tau = H2 \ [2*tau0[1]-tau0[2];-tau0[1];spzeros(T-2)];
-        Ktau = HH2 / sigtau2 + HHphi / sigc2;
-        #Ktau = Symmetric(Ktau);
+        Ktau = triu(HH2 / sigtau2 + HHphi / sigc2);
+        Ktau = Ktau + Ktau' - sparse_diagonal(Ktau);
+        C = cholesky(Ktau, perm=1:size(Ktau, 1));
         tau_hat = Ktau \ (HH2 * alp_tau / sigtau2 + HHphi * y / sigc2);
-        Ctau = cholesky(Ktau);
-        Ltau=sparse(Ctau.L);
-        nrows_tau=size(Ctau)[1]
-        Ptau=sparse(1:nrows_tau,Ctau.p,ones(nrows_tau));
-        LtPtau = Ltau'*Ptau;
-        tau = tau_hat + LtPtau \ rand(Normal(),T);
 
+        L = sparse(C.L);
+        tau = tau_hat + L' \ rand(Normal(),T);
 
         # sample phi
         c = y - tau;
@@ -87,10 +83,6 @@ function gibbs_sampler(y, nsim, burnin)
         Kphi = iVphi + XXphi / sigc2;
         phi_hat = Kphi \ (iVphi * phi0 + Xphi' * c / sigc2);
         Cphi = cholesky(Kphi);
-        # Lphi=sparse(Ctau.L);
-        # nrows_phi=size(Cphi)[1]
-        # Pphi=sparse(1:nrows_phi,Cphi.p,ones(nrows_phi));
-        # LtPphi = Lphi'*Pphi;
         phic = phi_hat + Cphi \ rand(Normal(),2);
         if sum(phic) < .99 && phic[2] - phic[1] < .99 && phic[2] > -.99
             phi = phic;
@@ -99,7 +91,7 @@ function gibbs_sampler(y, nsim, burnin)
             count_phi = count_phi + 1;
         end
 
-        # # sample sigc2
+        # sample sigc2
         G = Gamma(nu_sigc2 + T/2, 1/(S_sigc2 + .5*(c'*HHphi*c)[1]));
         sigc2 = 1 / rand(G);
 
@@ -112,19 +104,16 @@ function gibbs_sampler(y, nsim, burnin)
         cdf_sigtau2 = cumsum(p_sigtau2);
         sigtau2 = sigtau2_grid[rand(Uniform()).<cdf_sigtau2][1];
 
-
         # sample tau0
         Ktau0 = B0\Matrix(I,2 , 2) + Xtau0' * HH2 * Xtau0 / sigtau2;
         tau0_hat = Ktau0 \ (B0 \ a0 + Xtau0' * HH2 * tau / sigtau2);
         Ctau0 = cholesky(Ktau0);
         tau0 = tau0_hat + Ctau0.U \ randn(2);
 
-
         if isim > burnin
             i = isim - burnin;
             store_tau[i,:] = tau;
             store_theta[i,:] = [phi' sigc2 sigtau2 tau0'];
-            #store_mu[i,:] = 4*(tau-[tau0[1[];tau[1:end-1[]])';
         end
     end
 
@@ -134,19 +123,24 @@ function gibbs_sampler(y, nsim, burnin)
     return store_tau, store_theta
 end
 
+data_raw = CSV.read("./usgdp.csv", header = 0, ignoreemptylines=true);
+abc = reshape(Matrix(data_raw), 252);
+data = 100*log.(abc);
+y = data;
 
-store_tau, store_theta  = gibbs_sampler(y, nsim, burnin);
+@time store_tau, store_theta  = gibbs_sampler(y, 500, 500);
+@time store_tau, store_theta  = gibbs_sampler(y, 50000, 20000);
 tau_hat = collect(mean(store_tau, dims = 1)');
 theta_hat = mean(store_theta, dims=1)';
 
 ## plot of graphs
-tt = (1947:.25:2009.75);
-output_gap = reshape(y-tau_hat, 252);
-
 theta_CI = zeros(252,2)
 for i in 1:252
     theta_CI[i,:] = collect(quantile(store_tau[:,i], (.025, .975)))
 end
+
+tt = (1947:.25:2009.75);
+output_gap = reshape(y-tau_hat, 252);
 
 output_gap = [y y y] - [theta_CI[:,1] tau_hat theta_CI[:,2]]
 plot(tt, output_gap)

@@ -53,4 +53,8 @@ rsconnect/
 
 packrat/lib*/
 
+.idea
+.ipynb_checkpoints/
+.rstudio/
+venv/*
 

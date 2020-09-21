@@ -217,3 +217,4 @@ timetk::tk_tbl(data = cc, rename_index = "time") %>%
     rename(c = "Series 1") %>%
     ggplot2::ggplot(aes(x = time, y = c)) +
     geom_line()
+

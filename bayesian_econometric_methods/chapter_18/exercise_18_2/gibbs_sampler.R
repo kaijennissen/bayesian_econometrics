@@ -103,7 +103,8 @@ alpha_tau_tilde <- matrix(0, nrow = TT)
 
 
 for (ii in 1:total_runs) {
-    # draw from conditional for tau #------------------------------------------
+
+# draw from conditional for tau #------------------------------------------
     # gamma = (tau(0), tau(-1))'
     alpha_tau_tilde[1, 1] <- 2 * gamma[1] - gamma[2]
     alpha_tau_tilde[2, 1] <- -gamma[1]
@@ -116,9 +117,7 @@ for (ii in 1:total_runs) {
     tau <- tau_hat + solve(L, zrnorm(n = TT))
     tau <- tau@x
 
-
-    
-    # draw from conditional for phi #------------------------------------------
+# draw from conditional for phi #------------------------------------------
     cc <- y - tau
     
     X_phi <- cbind(c(0, cc[1:(TT - 1)]), c(0, 0, cc[1:(TT - 2)]))
@@ -151,7 +150,7 @@ for (ii in 1:total_runs) {
     }
     
     
-    # draw from condition for sigma^2_c #--------------------------------------
+# draw from condition for sigma^2_c #--------------------------------------
     S_sigma2_c_temp <- S_sigma2_c + 0.5 * t(cc) %*% (HH_phi %*% cc)
     sigma2_c <-
         1 / rgamma(
@@ -161,7 +160,7 @@ for (ii in 1:total_runs) {
         )
     
     
-    # draw from conditional for sigma^2_tau #---------------------------------------------------------
+# draw from conditional for sigma^2_tau #---------------------------------------------------------
     # gamma = (tau(0), tau(-1))'
     del_tau <-
         c(gamma[1], tau[1:TT]) - c(gamma[2], gamma[1], tau[1:(TT - 1)])
@@ -182,7 +181,7 @@ for (ii in 1:total_runs) {
         sigma2_tau_grid[which(runif(1) < cdf_sigtau2, TRUE)[1]]
     
     
-    # draw from conditional for gamma #----------------------------------------
+# draw from conditional for gamma #----------------------------------------
     K_gamma <-
         invV_gamma + t(X_gamma) %*% (HH_2 %*% X_gamma) / sigma2_tau
     L_gamma <- chol(K_gamma)
@@ -194,13 +193,36 @@ for (ii in 1:total_runs) {
     gamma <- gamma_hat + solve(L_gamma) %*% Z_gamma
     
     
-    # store #------------------------------------------------------------------
+# store #------------------------------------------------------------------
     if (ii > nburn) {
         nn <- ii - nburn
         store_tau[, nn] <- tau
         store_theta[, nn] <-
             c(c(phi), sigma2_c, sigma2_tau, gamma@x)
     }
+    
+    
+# Progress ----------------------------------------------------------------
+    if (ii %% (total_runs %/% 10) == 0) {
+        
+        perc_completed <- (ii %/% (total_runs %/% 10)) * 10
+        time_elapsed <- as.numeric(difftime(Sys.time(), now, units = "secs"))
+        
+        if (time_elapsed < 60) {
+            time_elapsed <- round(time_elapsed, 2)
+            print(paste0(perc_completed, " % completed in ", time_elapsed, " seconds"))
+        } else if (60 < time_elapsed & time_elapsed < 3600) {
+            time_elapsed <- round(time_elapsed / 60, 2)
+            print(paste0(perc_completed, " % completed in ", time_elapsed, " minutes"))
+        } else if (time_elapsed > 3600) {
+            time_elapsed <- round(time_elapsed / 3600, 2)
+            print(paste0(perc_completed, " % completed in ", time_elapsed, " hour"))
+        }    
+        
+    }
+    
+    
+    
 }
 print(Sys.time() - now)
 

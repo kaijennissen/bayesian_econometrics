@@ -4,7 +4,6 @@
 # Bayesian Econometric Methods (2nd edition).
 # Cambridge: Cambridge University Press.
 # -----------------------------------------------------------------------------
-rm(list = ls())
 set.seed(123)
 library(xts)
 library(Matrix)

@@ -1,8 +1,14 @@
 #!/usr/bin/env julia
+#
+# add packages
+# 1) Pkg.add("PackageName")
+# 2) type "]" to get into Package mode
+# add PackageName
+# leave Package mode by typing "ctrl + c"
 using LinearAlgebra;
 using CSV
 using SparseArrays
-using Distributions
+#using Distributions
 using Random
 using Plots
 
@@ -51,16 +57,20 @@ function gibbs_sampler(y, nsim, burnin)
     sparse_subdiag_1 = sparse(collect(2:T),collect(1:(T-1)),ones(T-1), T, T)
     sparse_subdiag_2 = sparse(collect(3:T),collect(1:(T-2)),ones(T-2), T, T)
 
-    H2 = sparse_diag - 2*sparse_subdiag_1 + sparse_subdiag_2;
-    HH2 = H2'*H2;
+    H2 = sparse_diag - 2 * sparse_subdiag_1 + sparse_subdiag_2;
+    HH2 = H2' * H2;
 
     Hphi = sparse_diag - phi[1]*sparse_subdiag_1 - phi[2]*sparse_subdiag_2;
-    HHphi = Hphi'*Hphi;
+    HHphi = Hphi' * Hphi;
 
     Xtau0 = [collect(2:T+1) -collect(1:T)];
     n_grid = 500;
     count_phi = 0;
 
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
     function f_tau(x, T, del_tau)
          return (-T/2*log.(x) - sum((del_tau[2:T] - del_tau[1:T-1]).^2)./(2*x));
     end
